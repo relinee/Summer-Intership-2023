@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="/assets/logo.png" alt="logo" title="Летняя стажировка fuse8/byteminds"/>
+  <img src="assets/logo.png" alt="logo" title="Летняя стажировка fuse8/byteminds"/>
 </p>
 
 # Домашние задания
