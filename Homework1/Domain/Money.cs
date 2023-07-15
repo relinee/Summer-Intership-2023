@@ -50,8 +50,7 @@ public class Money
 
 		var diffKopeks = a.Rubles * 100 + a.Kopeks - (b.Rubles * 100 + b.Kopeks);
 
-		return (diffKopeks > 0 && a.IsNegative) ||
-		       (diffKopeks < 0 && b.IsNegative) ?
+		return (diffKopeks > 0 && a.IsNegative) || (diffKopeks < 0 && b.IsNegative) ?
 			new Money(isNegative: true, rubles: Math.Abs(diffKopeks) / 100, kopeks: Math.Abs(diffKopeks) % 100) :
 			new Money(isNegative: false, rubles: Math.Abs(diffKopeks) / 100, kopeks: Math.Abs(diffKopeks) % 100);
 	}
