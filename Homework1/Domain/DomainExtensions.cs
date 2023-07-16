@@ -9,6 +9,5 @@ public static class DomainExtensions
 		=> string.Join(separator, collection);
 
 	public static decimal DaysCountBetween(this DateTimeOffset dtoA, DateTimeOffset dtoB)
-		//=> Math.Abs(dtoA.Year + dtoA.DayOfYear - (dtoB.Year + dtoB.DayOfYear));
 		=> Math.Abs((dtoA.Date - dtoB.Date).Days);
 }
