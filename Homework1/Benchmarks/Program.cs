@@ -4,7 +4,7 @@ using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Running;
 using Fuse8_ByteMinds.SummerSchool.Domain;
 
-//BenchmarkRunner.Run<StringInternBenchmark>();
+BenchmarkRunner.Run<StringInternBenchmark>();
 BenchmarkRunner.Run<AccountProcessorCalculateBenchmark>();
 
 [MemoryDiagnoser(displayGenColumns: true)]
