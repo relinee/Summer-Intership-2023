@@ -41,7 +41,7 @@ public class CalendarResource
 		get
 		{
 			if ((int)month < 0 || (int)month > 11)
-				throw new ArgumentOutOfRangeException(nameof(month),"Номер месяца должен быть в отрезке [0,11]");
+				throw new ArgumentOutOfRangeException(nameof(month),"Такого месяца нет");
 			return MonthNames[(int)month];
 		}
 	}

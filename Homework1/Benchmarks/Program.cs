@@ -150,40 +150,17 @@ public class AccountProcessorCalculateBenchmark
 
     public IEnumerable<BankAccount> SampleData()
     {
-        var lastOperation = new BankOperation
-        {
-            TotalAmount = 100000,
-            OperationInfo0 = 100000L,
-            OperationInfo1 = 200000L,
-            OperationInfo2 = 300000L
-        };
-        var previousOperation = new BankOperation
-        {
-            TotalAmount = 100000,
-            OperationInfo0 = 100000L,
-            OperationInfo1 = 200000L,
-            OperationInfo2 = 300000L
-        };
-        var bankAccount = new BankAccount
-        {
-            TotalAmount = 100000,
-            LastOperation = lastOperation,
-            PreviousOperation = previousOperation
-        };
-        yield return bankAccount;
         yield return new BankAccount();
     }
 }
 
 /* Табличка:
-|                    Method |          bankAccount |     Mean |   Error |  StdDev | Ratio | Rank |   Gen0 |   Gen1 | Allocated | Alloc Ratio |
-|-------------------------- |--------------------- |---------:|--------:|--------:|------:|-----:|-------:|-------:|----------:|------------:|
-| PerformedAccountCalculate | Fuse8(...)count [47] | 366.7 ns | 1.88 ns | 1.75 ns |  0.66 |    1 | 0.1349 | 0.0005 |   2.21 KB |        0.34 |
-| PerformedAccountCalculate | Fuse8(...)count [47] | 378.8 ns | 7.46 ns | 7.66 ns |  0.68 |    2 | 0.1349 | 0.0005 |   2.21 KB |        0.34 |
-|  OrdinaryAccountCalculate | Fuse8(...)count [47] | 554.3 ns | 4.89 ns | 4.58 ns |  1.00 |    3 | 0.4025 |      - |   6.59 KB |        1.00 |
-|  OrdinaryAccountCalculate | Fuse8(...)count [47] | 554.3 ns | 2.90 ns | 2.72 ns |  1.00 |    3 | 0.4025 |      - |   6.59 KB |        1.00 |
+|                    Method |          bankAccount |     Mean |   Error |   StdDev | Ratio | RatioSD | Rank |   Gen0 | Allocated | Alloc Ratio |
+|-------------------------- |--------------------- |---------:|--------:|---------:|------:|--------:|-----:|-------:|----------:|------------:|
+| PerformedAccountCalculate | Fuse8(...)count [47] | 302.7 ns | 6.18 ns | 10.98 ns |  0.55 |    0.03 |    1 | 0.0014 |      24 B |       0.004 |
+|  OrdinaryAccountCalculate | Fuse8(...)count [47] | 541.7 ns | 4.02 ns |  3.76 ns |  1.00 |    0.00 |    2 | 0.4025 |    6744 B |       1.000 |
 
 Выводы: 
-1) Оптимизированный метод почти работает примерно на 33% быстрее;
-2) В оптимизированном методе выделение памяти на 66% меньше, чем в обычном.
+1) Оптимизированный метод работает 45% быстрее;
+2) В оптимизированном методе выделение памяти в 250 раз меньше, чем в обычном.
 */

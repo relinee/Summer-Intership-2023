@@ -40,6 +40,11 @@ public class Money
 	/// </summary>
 	public int Kopeks { get; }
 
+	/// <summary>
+	/// Общее количество копеек
+	/// </summary>
+	private int AllKopeks => Rubles * 100 + Kopeks;
+
 	public static Money operator +(Money a, Money b)
 	{
 		if (a.IsNegative && b.IsNegative)
@@ -48,7 +53,7 @@ public class Money
 		if (!a.IsNegative && !b.IsNegative)
 			return new Money(isNegative: false, rubles:a.Rubles + b.Rubles + (a.Kopeks + b.Kopeks) / 100, kopeks: (a.Kopeks + b.Kopeks) % 100);
 
-		var diffKopeks = a.Rubles * 100 + a.Kopeks - (b.Rubles * 100 + b.Kopeks);
+		var diffKopeks = a.AllKopeks - b.AllKopeks;
 
 		return (diffKopeks > 0 && a.IsNegative) || (diffKopeks < 0 && b.IsNegative) ?
 			new Money(isNegative: true, rubles: Math.Abs(diffKopeks) / 100, kopeks: Math.Abs(diffKopeks) % 100) :
@@ -62,15 +67,15 @@ public class Money
 
 	public static bool operator >(Money a, Money b)
 	{
-		var totalKopeksA = (100 * a.Rubles + a.Kopeks) * (a.IsNegative ? -1 : 1);
-		var totalKopeksB = (100 * b.Rubles + b.Kopeks) * (b.IsNegative ? -1 : 1);
+		var totalKopeksA = a.AllKopeks * (a.IsNegative ? -1 : 1);
+		var totalKopeksB = b.AllKopeks * (b.IsNegative ? -1 : 1);
 		return totalKopeksA > totalKopeksB;
 	}
 
 	public static bool operator <(Money a, Money b)
 	{
-		var totalKopeksA = (100 * a.Rubles + a.Kopeks) * (a.IsNegative ? -1 : 1);
-		var totalKopeksB = (100 * b.Rubles + b.Kopeks) * (b.IsNegative ? -1 : 1);
+		var totalKopeksA = a.AllKopeks * (a.IsNegative ? -1 : 1);
+		var totalKopeksB = b.AllKopeks * (b.IsNegative ? -1 : 1);
 		return totalKopeksA < totalKopeksB;
 	}
 	
@@ -92,6 +97,6 @@ public class Money
 	public bool Equals(Money? other)
 		=> other != null &&
 		   other.IsNegative == IsNegative &&
-		   other.Rubles == Rubles && other.Kopeks == other.Kopeks;
+		   other.Rubles == Rubles && other.Kopeks == Kopeks;
 	
 }
