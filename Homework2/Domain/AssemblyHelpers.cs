@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Runtime.InteropServices.JavaScript;
 
 namespace Fuse8_ByteMinds.SummerSchool.Domain;
 
@@ -18,9 +19,17 @@ public static class AssemblyHelpers
 		var assemblyClassTypes = Assembly.GetAssembly(typeof(AssemblyHelpers))
 			!.DefinedTypes
 			.Where(p => p.IsClass);
-
-		// TODO Добавить реализацию
-		throw new NotImplementedException();
+		
+		var dictBaseType = new Dictionary<string, int>();
+		foreach (var classTypeInfo in assemblyClassTypes)
+		{
+			var baseTypeClass = GetBaseType(classTypeInfo);
+			if (baseTypeClass?.Namespace != "Fuse8_ByteMinds.SummerSchool.Domain" || classTypeInfo.IsAbstract)
+				continue;
+			dictBaseType.TryAdd(baseTypeClass.Name, 0);
+			dictBaseType[baseTypeClass.Name]++;
+		}
+		return dictBaseType.Select(val => (val.Key, val.Value)).ToArray();
 	}
 
 	/// <summary>

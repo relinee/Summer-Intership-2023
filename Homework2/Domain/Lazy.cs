@@ -5,7 +5,10 @@
 /// </summary>
 public class Lazy<TValue>
 {
-	// TODO Реализовать ленивое получение значение при первом обращении к Value
+	public Lazy(Func<TValue> func)
+	{
+		Value = func.Invoke();
+	}
 
 	public TValue? Value { get; }
 }
