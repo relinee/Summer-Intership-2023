@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace Fuse8_ByteMinds.SummerSchool.Domain;
+﻿namespace Fuse8_ByteMinds.SummerSchool.Domain;
 
 /// <summary>
 /// Животное
