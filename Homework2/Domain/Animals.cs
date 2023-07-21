@@ -63,6 +63,6 @@ public class Husky : Dog
 {
     public override bool HasBigWeight => true;
 
-    public string WhatDoesSay()
+    public new string WhatDoesSay()
         => "ауф";
 }

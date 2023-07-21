@@ -25,9 +25,13 @@ public static class ExceptionHandler
 			return "Количество копеек должно быть больше 0 и меньше 99";
 		}
 		catch (HttpRequestException httpRequestException)
+		when(httpRequestException.StatusCode == HttpStatusCode.NotFound)
 		{
-			if (httpRequestException.StatusCode == HttpStatusCode.NotFound)
-				return "Ресурс не райден";
+			return "Ресурс не райден";
+
+		}
+		catch (HttpRequestException httpRequestException)
+		{
 			return httpRequestException.StatusCode.ToString();
 		}
 		catch (MoneyException moneyException)
