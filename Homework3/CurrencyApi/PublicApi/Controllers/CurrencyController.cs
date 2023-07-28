@@ -128,9 +128,7 @@ public class CurrencyController : ControllerBase
         var currUrl = baseUrl + $"/historical?currencies={currencyCode}&date={date.ToString("yyyy-MM-dd")}&base_currency={apiSettings.BaseCurrency}";
         _httpClient.DefaultRequestHeaders.Clear();
         _httpClient.DefaultRequestHeaders.Add("apiKey", apiSettings.ApiKey);
-
         
-        // TODO : посмотреть что с датой происходит(почему неправильно конвертируется)
         var response = await _httpClient.GetAsync(currUrl);
         if (response.IsSuccessStatusCode)
         {
