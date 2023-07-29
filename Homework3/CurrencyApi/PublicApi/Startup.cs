@@ -1,9 +1,7 @@
 ﻿using System.Reflection;
 using System.Text.Json.Serialization;
 using Audit.Core;
-using Audit.Core.Providers;
 using Audit.Http;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
@@ -37,16 +35,6 @@ public class Startup
 				});
 		;
 		
-		// Добавление в конфигурацию аудита пути сохранения логов
-		var auditLogPath = Path.Combine(Directory.GetCurrentDirectory(), "AuditLogs");
-		Configuration.Setup()
-			.UseFileLogProvider(config => config.Directory(auditLogPath));
-		
-		// Configuration.Setup()
-		// 	.UseSerilog(
-		// 		config => config.Message(
-		// 			auditEvent => auditEvent.ToJson()));
-
 		// Логгирование входящих запросов (альтернатива мидлваре)
 		// services.AddHttpLogging(logger =>
 		// {
@@ -60,6 +48,11 @@ public class Startup
 				.IncludeResponseBody()
 				.IncludeResponseHeaders()
 				.IncludeContentHeaders());
+
+		Configuration.Setup()
+			.UseSerilog(
+				config => config.Message(
+					auditEvent => auditEvent.ToJson()));
 
 		services.AddControllers(options =>
 		{
@@ -89,7 +82,7 @@ public class Startup
 			app.UseSwagger();
 			app.UseSwaggerUI();
 		}
-
+		
 		app.UseMiddleware<IncomingRequestsLoggingMiddleware>();
 		app.UseMiddleware<ApiRateLimitMiddleware>();
 		app.UseRouting()
