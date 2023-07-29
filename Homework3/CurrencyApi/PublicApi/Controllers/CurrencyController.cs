@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Text.Json.Serialization;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
@@ -12,19 +13,12 @@ namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 public class CurrencyController : ControllerBase
 {
     private readonly IConfiguration _configuration;
-    private readonly HttpClient _httpClient;
-    private readonly string baseUrl = "https://api.currencyapi.com/v3";
-
-    // public CurrencyController(IConfiguration configuration, HttpClient httpClient)
-    // {
-    //     _configuration = configuration;
-    //     _httpClient = httpClient;
-    // }
+    private readonly CurrencyService _currencyService;
     
-    public CurrencyController(IConfiguration configuration, IHttpClientFactory httpClientFactory)
+    public CurrencyController(IConfiguration configuration, CurrencyService currencyService)
     {
         _configuration = configuration;
-        _httpClient = httpClientFactory.CreateClient("AuditHttpClient");
+        _currencyService = currencyService;
     }
 
     /// <summary>
@@ -76,11 +70,7 @@ public class CurrencyController : ControllerBase
     private async Task<LatestExchangeRates> GetCurrencyRate(string currencyCode)
     {
         var apiSettings = _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        var currUrl = baseUrl + $"/latest?currencies={currencyCode}&base_currency={apiSettings.BaseCurrency}";
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apiKey", apiSettings.ApiKey);
-
-        var response = await _httpClient.GetAsync(currUrl);
+        var response = await _currencyService.SendRequestToGetCurrencyRateAsync(apiSettings.BaseCurrency, currencyCode);
         if (response.IsSuccessStatusCode)
         {
             var latestCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
@@ -125,11 +115,7 @@ public class CurrencyController : ControllerBase
     public async Task<ActionResult<HistoricalExchangeRates>> GetHistoricalCurrencyRate(string currencyCode, DateOnly date)
     {
         var apiSettings = _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        var currUrl = baseUrl + $"/historical?currencies={currencyCode}&date={date.ToString("yyyy-MM-dd")}&base_currency={apiSettings.BaseCurrency}";
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apiKey", apiSettings.ApiKey);
-        
-        var response = await _httpClient.GetAsync(currUrl);
+        var response = await _currencyService.SendRequestToGetHistoricalCurrencyRateAsync(apiSettings.BaseCurrency, currencyCode, date);
         if (response.IsSuccessStatusCode)
         {
             var historicalCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
@@ -173,13 +159,8 @@ public class CurrencyController : ControllerBase
     [HttpGet("settings")]
     public async Task<ActionResult<SettingsResult>> GetSettings()
     {
-        var currUrl = baseUrl + "/status";
         var apiSettings =  _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apikey", apiSettings.ApiKey);
-        
-        var response = await _httpClient.GetAsync(currUrl);
+        var response = await _currencyService.SendRequestToGetStatusAsync();
         if (!response.IsSuccessStatusCode)
             throw new Exception("Ошибка получения информации от сервера!");
         var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();

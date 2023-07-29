@@ -1,25 +1,17 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
 
 public class ApiRateLimitMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
-
-    // public ApiRateLimitMiddleware(RequestDelegate next, HttpClient httpClient, IConfiguration configuration)
-    // {
-    //     _next = next;
-    //     _httpClient = httpClient;
-    //     _configuration = configuration;
-    // }
+    private readonly CurrencyService _currencyService;
     
-    public ApiRateLimitMiddleware(RequestDelegate next, IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    public ApiRateLimitMiddleware(RequestDelegate next, CurrencyService currencyService)
     {
         _next = next;
-        _httpClient = httpClientFactory.CreateClient("AuditHttpClient");;
-        _configuration = configuration;
+        _currencyService = currencyService;
     }
 
     public async Task Invoke(HttpContext context)
@@ -32,15 +24,10 @@ public class ApiRateLimitMiddleware
 
     private async Task<int> GetCountRequest()
     {
-        var currUrl = "https://api.currencyapi.com/v3/status";
-        var apiSettings =  _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apikey", apiSettings.ApiKey);
-        
-        var response = await _httpClient.GetAsync(currUrl);
+        var response = await _currencyService.SendRequestToGetStatusAsync();
         if (!response.IsSuccessStatusCode)
             throw new Exception("Ошибка получения количества доступных запросов!");
+        
         var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
         if (apiStatus == null)
             throw new Exception("Ошибка преобразования данных");

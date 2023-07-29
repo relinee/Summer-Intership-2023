@@ -6,6 +6,8 @@ using Audit.Http;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
+using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.OpenApi.Models;
 
 
@@ -35,19 +37,23 @@ public class Startup
 				});
 		;
 		
-		string auditLogPath = Path.Combine(Directory.GetCurrentDirectory(), "AuditLogs");
+		// Добавление в конфигурацию аудита пути сохранения логов
+		var auditLogPath = Path.Combine(Directory.GetCurrentDirectory(), "AuditLogs");
 		Configuration.Setup()
 			.UseFileLogProvider(config => config.Directory(auditLogPath));
 		
-		// services.AddHttpClient<CurrencyController>()
-		// 	.AddAuditHandler(audit => audit
-		// 		.IncludeRequestBody()
-		// 		.IncludeRequestHeaders()
-		// 		.IncludeResponseBody()
-		// 		.IncludeResponseHeaders()
-		// 		.IncludeContentHeaders());
-		
-		services.AddHttpClient("AuditHttpClient")
+		// Configuration.Setup()
+		// 	.UseSerilog(
+		// 		config => config.Message(
+		// 			auditEvent => auditEvent.ToJson()));
+
+		// Логгирование входящих запросов (альтернатива мидлваре)
+		// services.AddHttpLogging(logger =>
+		// {
+		// 	logger.LoggingFields = HttpLoggingFields.RequestPath;
+		// });
+
+		services.AddHttpClient<CurrencyService>()
 			.AddAuditHandler(audit => audit
 				.IncludeRequestBody()
 				.IncludeRequestHeaders()
