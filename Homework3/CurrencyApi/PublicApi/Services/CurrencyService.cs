@@ -1,17 +1,18 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+using Microsoft.Extensions.Options;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 
 public class CurrencyService
 {
     private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
+    private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
     private const string BaseUrl = "https://api.currencyapi.com/v3";
 
-    public CurrencyService(HttpClient httpClient, IConfiguration configuration)
+    public CurrencyService(HttpClient httpClient, IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor)
     {
         _httpClient = httpClient;
-        _configuration = configuration;
+        _apiSettingsAsOptionsMonitor = apiSettingsAsOptionsMonitor;
     }
 
     public Task<HttpResponseMessage> SendRequestToGetStatusAsync()
@@ -31,9 +32,8 @@ public class CurrencyService
 
     private async Task<HttpResponseMessage> SendRequestWithPath(string path)
     {
-        var apiSettings =  _configuration.GetSection("ApiSettings").Get<ApiSettings>();
         _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apikey", apiSettings.ApiKey);
+        _httpClient.DefaultRequestHeaders.Add("apikey", _apiSettingsAsOptionsMonitor.CurrentValue.ApiKey);
         return await _httpClient.GetAsync(path);
     }
     

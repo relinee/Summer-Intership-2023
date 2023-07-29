@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 
@@ -12,12 +13,12 @@ namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 [Route("currency")]
 public class CurrencyController : ControllerBase
 {
-    private readonly IConfiguration _configuration;
+    private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
     private readonly CurrencyService _currencyService;
     
-    public CurrencyController(IConfiguration configuration, CurrencyService currencyService)
+    public CurrencyController(IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor, CurrencyService currencyService)
     {
-        _configuration = configuration;
+        _apiSettingsAsOptionsMonitor = apiSettingsAsOptionsMonitor;
         _currencyService = currencyService;
     }
 
@@ -39,8 +40,7 @@ public class CurrencyController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<LatestExchangeRates>> GetDefaultCurrencyRate()
     {
-        var apiSettings = _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        return await GetCurrencyRate(apiSettings.DefaultCurrency);
+        return await GetCurrencyRate(_apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency);
     }
 
 
@@ -69,14 +69,13 @@ public class CurrencyController : ControllerBase
 
     private async Task<LatestExchangeRates> GetCurrencyRate(string currencyCode)
     {
-        var apiSettings = _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        var response = await _currencyService.SendRequestToGetCurrencyRateAsync(apiSettings.BaseCurrency, currencyCode);
+        var response = await _currencyService.SendRequestToGetCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode);
         if (response.IsSuccessStatusCode)
         {
             var latestCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
             if (latestCurrencyExchangeData?.Data == null || latestCurrencyExchangeData.Meta == null)
                 throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(latestCurrencyExchangeData.Data[currencyCode].Value, apiSettings.DecimalPlaces);
+            var roundedValue = Math.Round(latestCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
             return new LatestExchangeRates
             {
                 ValueCode = latestCurrencyExchangeData.Data[currencyCode].Code,
@@ -114,14 +113,13 @@ public class CurrencyController : ControllerBase
     [Route("{currencyCode}/{date}")]
     public async Task<ActionResult<HistoricalExchangeRates>> GetHistoricalCurrencyRate(string currencyCode, DateOnly date)
     {
-        var apiSettings = _configuration.GetSection("ApiSettings").Get<ApiSettings>();
-        var response = await _currencyService.SendRequestToGetHistoricalCurrencyRateAsync(apiSettings.BaseCurrency, currencyCode, date);
+        var response = await _currencyService.SendRequestToGetHistoricalCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode, date);
         if (response.IsSuccessStatusCode)
         {
             var historicalCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
             if (historicalCurrencyExchangeData?.Data == null || historicalCurrencyExchangeData.Meta == null)
                 throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(historicalCurrencyExchangeData.Data[currencyCode].Value, apiSettings.DecimalPlaces);
+            var roundedValue = Math.Round(historicalCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
             return new HistoricalExchangeRates
             {
                 Date = date,
@@ -159,20 +157,19 @@ public class CurrencyController : ControllerBase
     [HttpGet("settings")]
     public async Task<ActionResult<SettingsResult>> GetSettings()
     {
-        var apiSettings =  _configuration.GetSection("ApiSettings").Get<ApiSettings>();
         var response = await _currencyService.SendRequestToGetStatusAsync();
         if (!response.IsSuccessStatusCode)
             throw new Exception("Ошибка получения информации от сервера!");
         var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiSettings == null)
+        if (apiStatus == null)
             throw new Exception("Ошибка преобразования данных");
         return new SettingsResult
         {
-            DefaultCurrency = apiSettings.DefaultCurrency,
-            BaseCurrency = apiSettings.BaseCurrency,
+            DefaultCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency,
+            BaseCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency,
             RequestLimit = apiStatus.Quotas.Month.Total,
             RequestCount = apiStatus.Quotas.Month.Used,
-            CurrencyRoundCount = apiSettings.DecimalPlaces
+            CurrencyRoundCount = _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces
         };
     }
 }

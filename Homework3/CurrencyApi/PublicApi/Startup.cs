@@ -4,6 +4,7 @@ using Audit.Core;
 using Audit.Http;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.OpenApi.Models;
@@ -52,12 +53,27 @@ public class Startup
 		Configuration.Setup()
 			.UseSerilog(
 				config => config.Message(
-					auditEvent => auditEvent.ToJson()));
+					auditEvent =>
+					{
+						if (auditEvent is AuditEventHttpClient httpClientEvent)
+						{
+							var contentBody = httpClientEvent.Action?.Response?.Content?.Body;
+							if (contentBody is string { Length: > 1000 } stringBody)
+							{
+								httpClientEvent.Action.Response.Content.Body = stringBody[..1000] + "<...>";
+							}
+						}
+						return auditEvent.ToJson();
+					}));
 
 		services.AddControllers(options =>
 		{
 			options.Filters.Add(typeof(ApiExceptionFilter));
 		});
+
+		// Регистрация конфигурации
+		var sectionApiSettings = _configuration.GetRequiredSection("ApiSettings");
+		services.Configure<ApiSettings>(sectionApiSettings);
 		
 		services.AddEndpointsApiExplorer();
 		services.AddSwaggerGen(options =>
