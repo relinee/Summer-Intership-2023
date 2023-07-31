@@ -14,7 +14,7 @@ namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 public class CurrencyController : ControllerBase
 {
     private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
-    private readonly CurrencyService _currencyService;
+    private readonly ICurrencyService _currencyService;
     
     public CurrencyController(IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor, CurrencyService currencyService)
     {
@@ -113,6 +113,8 @@ public class CurrencyController : ControllerBase
     [Route("{currencyCode}/{date}")]
     public async Task<ActionResult<HistoricalExchangeRates>> GetHistoricalCurrencyRate(string currencyCode, DateOnly date)
     {
+        // if (date == DateOnly.Parse("0001-01-01"))
+        //     throw new Exception("Ошибка преобразования даты");
         var response = await _currencyService.SendRequestToGetHistoricalCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode, date);
         if (response.IsSuccessStatusCode)
         {

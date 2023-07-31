@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 
-public class CurrencyService
+public class CurrencyService : ICurrencyService
 {
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;

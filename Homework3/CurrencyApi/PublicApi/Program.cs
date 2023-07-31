@@ -6,9 +6,9 @@ using Serilog.Events;
 var webHost = WebHost
 	.CreateDefaultBuilder(args)
 	.UseStartup<Startup>()
-	.UseSerilog((ctx, cfg) =>
+	.UseSerilog((context, configuration) =>
 	{
-		cfg.ReadFrom.Configuration(ctx.Configuration)
+		configuration.ReadFrom.Configuration(context.Configuration)
 			.MinimumLevel.Debug()
 			.MinimumLevel.Override("Microsoft", LogEventLevel.Information)
 			.WriteTo.Console();
