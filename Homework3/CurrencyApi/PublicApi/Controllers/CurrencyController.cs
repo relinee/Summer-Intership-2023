@@ -40,7 +40,7 @@ public class CurrencyController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<LatestExchangeRates>> GetDefaultCurrencyRate()
     {
-        return await GetCurrencyRate(_apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency);
+        return await _currencyService.GetCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency);
     }
 
 
@@ -64,34 +64,9 @@ public class CurrencyController : ControllerBase
     [Route("{currencyCode}")]
     public async Task<ActionResult<LatestExchangeRates>> GetNotDefaultCurrencyRate(string currencyCode)
     {
-        return await GetCurrencyRate(currencyCode);
+        return await _currencyService.GetCurrencyRateAsync(currencyCode);
     }
 
-    private async Task<LatestExchangeRates> GetCurrencyRate(string currencyCode)
-    {
-        var response = await _currencyService.SendRequestToGetCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode);
-        if (response.IsSuccessStatusCode)
-        {
-            var latestCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (latestCurrencyExchangeData?.Data == null || latestCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(latestCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
-            return new LatestExchangeRates
-            {
-                ValueCode = latestCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
-        {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
-    }
-    
     /// <summary>
     /// Получить курс для валюты по выбору в определенный день
     /// </summary>
@@ -113,31 +88,7 @@ public class CurrencyController : ControllerBase
     [Route("{currencyCode}/{date}")]
     public async Task<ActionResult<HistoricalExchangeRates>> GetHistoricalCurrencyRate(string currencyCode, DateOnly date)
     {
-        // if (date == DateOnly.Parse("0001-01-01"))
-        //     throw new Exception("Ошибка преобразования даты");
-        var response = await _currencyService.SendRequestToGetHistoricalCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode, date);
-        if (response.IsSuccessStatusCode)
-        {
-            var historicalCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (historicalCurrencyExchangeData?.Data == null || historicalCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(historicalCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
-            return new HistoricalExchangeRates
-            {
-                Date = date,
-                ValueCode = historicalCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-                
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
-        {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
+        return await _currencyService.GetHistoricalCurrencyRateAsync(currencyCode, date);
     }
 
     /// <summary>
@@ -159,20 +110,7 @@ public class CurrencyController : ControllerBase
     [HttpGet("settings")]
     public async Task<ActionResult<SettingsResult>> GetSettings()
     {
-        var response = await _currencyService.SendRequestToGetStatusAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("Ошибка получения информации от сервера!");
-        var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiStatus == null)
-            throw new Exception("Ошибка преобразования данных");
-        return new SettingsResult
-        {
-            DefaultCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency,
-            BaseCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency,
-            RequestLimit = apiStatus.Quotas.Month.Total,
-            RequestCount = apiStatus.Quotas.Month.Used,
-            CurrencyRoundCount = _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces
-        };
+        return await _currencyService.GetSettingsAsync();
     }
 }
 
@@ -254,32 +192,4 @@ public record SettingsResult
     /// </summary>
     [JsonPropertyName("currencyRoundCount")]
     public int CurrencyRoundCount { get; init; }
-}
-
-public record CurrencyExchangeData
-{
-    public Meta Meta { get; init; }
-    public Dictionary<string, CurrencyData> Data { get; init; }
-}
-
-public record Meta
-{
-    public DateTimeOffset LastUpdatedAt { get; init; }
-}
-
-public record CurrencyData
-{
-    public string Code { get; init; }
-    public decimal Value { get; init; }
-}
-
-public record ErrorApiResponse
-{
-    public string Message { get; init; }
-    public ErrorApiDetails Errors { get; init; }
-}
-
-public record ErrorApiDetails
-{
-    public List<string> Currencies { get; init; }
 }

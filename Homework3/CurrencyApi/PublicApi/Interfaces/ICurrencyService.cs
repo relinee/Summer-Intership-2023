@@ -1,13 +1,15 @@
-﻿namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+
+namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 
 public interface ICurrencyService
 {
-    public Task<HttpResponseMessage> SendRequestToGetStatusAsync();
+    public Task<LatestExchangeRates> GetCurrencyRateAsync(string currencyCode);
 
-    public Task<HttpResponseMessage> SendRequestToGetCurrencyRateAsync(string baseCurrencyCode,
-        string defaultCurrencyCode);
+    public Task<HistoricalExchangeRates> GetHistoricalCurrencyRateAsync(string currencyCode, DateOnly date);
 
-    public Task<HttpResponseMessage> SendRequestToGetHistoricalCurrencyRateAsync(string baseCurrencyCode,
-        string defaultCurrencyCode, DateOnly date);
-    
+    public Task<SettingsResult> GetSettingsAsync();
+
+    public Task<ApiStatus> CheckApiStatusAsync();
 }
