@@ -16,7 +16,7 @@ public class CurrencyController : ControllerBase
     private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
     private readonly ICurrencyService _currencyService;
     
-    public CurrencyController(IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor, CurrencyService currencyService)
+    public CurrencyController(IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor, ICurrencyService currencyService)
     {
         _apiSettingsAsOptionsMonitor = apiSettingsAsOptionsMonitor;
         _currencyService = currencyService;
@@ -113,4 +113,3 @@ public class CurrencyController : ControllerBase
         return await _currencyService.GetSettingsAsync();
     }
 }
-

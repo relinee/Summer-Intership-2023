@@ -42,7 +42,7 @@ public class Startup
 		// 	logger.LoggingFields = HttpLoggingFields.RequestPath;
 		// });
 
-		services.AddHttpClient<CurrencyService>()
+		services.AddHttpClient<ICurrencyService, CurrencyService>()
 			.AddAuditHandler(audit => audit
 				.IncludeRequestBody()
 				.IncludeRequestHeaders()

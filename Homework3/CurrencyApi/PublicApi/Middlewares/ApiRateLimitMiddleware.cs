@@ -5,9 +5,9 @@ namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
 public class ApiRateLimitMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly CurrencyService _currencyService;
+    private readonly ICurrencyService _currencyService;
     
-    public ApiRateLimitMiddleware(RequestDelegate next, CurrencyService currencyService)
+    public ApiRateLimitMiddleware(RequestDelegate next, ICurrencyService currencyService)
     {
         _next = next;
         _currencyService = currencyService;
