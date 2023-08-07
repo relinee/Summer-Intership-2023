@@ -1,4 +1,14 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Reflection;
+using System.Text.Json.Serialization;
+using Audit.Core;
+using Audit.Http;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
+using Microsoft.AspNetCore.HttpLogging;
+using Microsoft.OpenApi.Models;
+
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi;
 
@@ -10,7 +20,7 @@ public class Startup
 	{
 		_configuration = configuration;
 	}
-
+	
 	public void ConfigureServices(IServiceCollection services)
 	{
 		services.AddControllers()
@@ -25,8 +35,60 @@ public class Startup
 					options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 				});
 		;
+		
+		// Логгирование входящих запросов (альтернатива мидлваре)
+		// services.AddHttpLogging(logger =>
+		// {
+		// 	logger.LoggingFields = HttpLoggingFields.RequestPath;
+		// });
+
+		services.AddHttpClient<ICurrencyService, CurrencyService>()
+			.AddAuditHandler(audit => audit
+				.IncludeRequestBody()
+				.IncludeRequestHeaders()
+				.IncludeResponseBody()
+				.IncludeResponseHeaders()
+				.IncludeContentHeaders());
+
+		Configuration.Setup()
+			.UseSerilog(
+				config => config.Message(
+					auditEvent =>
+					{
+						if (auditEvent is AuditEventHttpClient httpClientEvent)
+						{
+							var contentBody = httpClientEvent.Action?.Response?.Content?.Body;
+							if (contentBody is string { Length: > 1000 } stringBody)
+							{
+								httpClientEvent.Action.Response.Content.Body = stringBody[..1000] + "<...>";
+							}
+						}
+						return auditEvent.ToJson();
+					}));
+
+		services.AddControllers(options =>
+		{
+			options.Filters.Add(typeof(ApiExceptionFilter));
+		});
+
+		// Регистрация конфигурации
+		var sectionApiSettings = _configuration.GetRequiredSection("ApiSettings");
+		services.Configure<ApiSettings>(sectionApiSettings);
+		
 		services.AddEndpointsApiExplorer();
-		services.AddSwaggerGen();
+		services.AddSwaggerGen(options =>
+		{
+			options.SwaggerDoc("v1", new OpenApiInfo
+			{
+				Version = "v1",
+				Title = "Currency API",
+				Description = "Пример ASP .NET Core Web API"
+			});
+			var basePath = AppContext.BaseDirectory;
+			var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+			var xmlPath = Path.Combine(basePath, xmlFile);
+			options.IncludeXmlComments(xmlPath);
+		});
 	}
 
 	public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -36,7 +98,9 @@ public class Startup
 			app.UseSwagger();
 			app.UseSwaggerUI();
 		}
-
+		
+		app.UseMiddleware<IncomingRequestsLoggingMiddleware>();
+		app.UseMiddleware<ApiRateLimitMiddleware>();
 		app.UseRouting()
 			.UseEndpoints(endpoints => endpoints.MapControllers());
 	}
