@@ -2,14 +2,14 @@
 using System.Text.Json.Serialization;
 using Audit.Core;
 using Audit.Http;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Filter;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Middlewares;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Services;
 using Microsoft.OpenApi.Models;
 
-
-namespace Fuse8_ByteMinds.SummerSchool.PublicApi;
+namespace Fuse8_ByteMinds.SummerSchool.InternalApi;
 
 public class Startup
 {
@@ -34,13 +34,8 @@ public class Startup
 					options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
 				});
 		;
-		
-		// Логгирование входящих запросов (альтернатива мидлваре)
-		// services.AddHttpLogging(logger =>
-		// {
-		// 	logger.LoggingFields = HttpLoggingFields.RequestPath;
-		// });
 
+		// Регистрация сервисов
 		services.AddHttpClient<ICurrencyService, CurrencyService>()
 			.AddAuditHandler(audit => audit
 				.IncludeRequestBody()
@@ -48,6 +43,19 @@ public class Startup
 				.IncludeResponseBody()
 				.IncludeResponseHeaders()
 				.IncludeContentHeaders());
+
+		services.AddHttpClient<ICurrencyAPI, CurrencyService>()
+			.AddAuditHandler(audit => audit
+				.IncludeRequestBody()
+				.IncludeRequestHeaders()
+				.IncludeResponseBody()
+				.IncludeResponseHeaders()
+				.IncludeContentHeaders());
+		
+		services.AddTransient<ICachedCurrencyAPI, CachedCurrencyService>();
+
+		// Регистрация gRPC сервиса
+		services.AddGrpc();
 
 		Configuration.Setup()
 			.UseSerilog(
@@ -74,14 +82,17 @@ public class Startup
 		var sectionApiSettings = _configuration.GetRequiredSection("ApiSettings");
 		services.Configure<ApiSettings>(sectionApiSettings);
 		
+		var sectionCacheSettings = _configuration.GetRequiredSection("CacheSettings");
+		services.Configure<CurrencyCacheSettings>(sectionCacheSettings);
+		
 		services.AddEndpointsApiExplorer();
 		services.AddSwaggerGen(options =>
 		{
 			options.SwaggerDoc("v1", new OpenApiInfo
 			{
 				Version = "v1",
-				Title = "Currency Public API",
-				Description = "Внешний сервис по работе с курсами валют"
+				Title = "Currency Internal API",
+				Description = "Внутренний сервис по работе с курсами валют"
 			});
 			var basePath = AppContext.BaseDirectory;
 			var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -97,9 +108,19 @@ public class Startup
 			app.UseSwagger();
 			app.UseSwaggerUI();
 		}
+
+		// TODO: проверить так ли работает builder или стоит использовать var builder = WebApplication.CreateBuilder();
 		
+		// Настройка роутинга и эндпоинтов для gRPC сервиса
+		app.UseWhen(
+			predicate: context => context.Connection.LocalPort == _configuration.GetValue<int>("GrpcPort"),
+			configuration: grpcBuilder =>
+			{
+				grpcBuilder.UseRouting();
+				grpcBuilder.UseEndpoints(endpoints => endpoints.MapGrpcService<GrpcCurrencyService>());
+			});
+
 		app.UseMiddleware<IncomingRequestsLoggingMiddleware>();
-		app.UseMiddleware<ApiRateLimitMiddleware>();
 		app.UseRouting()
 			.UseEndpoints(endpoints => endpoints.MapControllers());
 	}

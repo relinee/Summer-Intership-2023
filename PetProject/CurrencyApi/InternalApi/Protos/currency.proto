@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+option csharp_namespace = "Fuse8_ByteMinds.SummerSchool.InternalApi.GrpcContracts";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service GrpcCurrency {
+  // Получить текущий курс определенной валюты
+  rpc GetCurrentCurrencyRate(CurrencyRequest) returns (CurrencyResponse);
+
+  // Получить курс определенной валюты на конкретную дату
+  rpc GetCurrencyRateOnDate(CurrencyRequestWithDate) returns (CurrencyResponse);
+
+  // Получить настройки
+  rpc GetSettings(google.protobuf.Empty) returns (SettingsResponse);
+}
+
+message CurrencyRequest {
+  CurrencyCode currencyCode = 1;
+}
+
+message CurrencyRequestWithDate {
+  CurrencyCode currencyCode = 1;
+  google.protobuf.Timestamp date = 2;
+}
+
+message CurrencyResponse {
+  CurrencyCode currencyCode = 1;
+  double value = 2;
+}
+
+message SettingsResponse {
+  CurrencyCode baseCurrencyCode = 1;
+  bool hasAvailableRequests = 2;
+}
+
+enum CurrencyCode{
+  USD = 0;
+  RUS = 1;
+  KZT = 2;
+  EUR = 3;
+}

@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
 
 public record Meta
 {

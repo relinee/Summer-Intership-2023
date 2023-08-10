@@ -400,3 +400,5 @@ FodyWeavers.xsd
 
 # Assets
 PublicApi/appsettings.Development.json
+InternalApi/appsettings.Development.json
+InternalApi/Cache
