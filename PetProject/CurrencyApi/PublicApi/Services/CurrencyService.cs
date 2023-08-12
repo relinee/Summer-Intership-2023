@@ -1,126 +1,64 @@
-﻿using System.Net;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.GrpcContracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Options;
+using Enum = System.Enum;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 
 public class CurrencyService : ICurrencyService
 {
-    private readonly HttpClient _httpClient;
-    private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
+    private readonly GrpcCurrency.GrpcCurrencyClient _grpcCurrencyClient;
+    private readonly IOptionsMonitor<ApiSettings> _apiSettings;
 
-    public CurrencyService(HttpClient httpClient, IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor)
+    public CurrencyService(GrpcCurrency.GrpcCurrencyClient grpcCurrencyClient, IOptionsMonitor<ApiSettings> apiSettings)
     {
-        _httpClient = httpClient;
-        _apiSettingsAsOptionsMonitor = apiSettingsAsOptionsMonitor;
+        _grpcCurrencyClient = grpcCurrencyClient;
+        _apiSettings = apiSettings;
     }
 
-    public async Task<LatestExchangeRates> GetCurrencyRateAsync(string currencyCode)
+    public async Task<ExchangeRates> GetCurrencyRateAsync(CurrencyType currencyCode)
     {
-        var response = await SendRequestToGetCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode);
-        if (response.IsSuccessStatusCode)
+        var currRequest = new CurrencyRequest{ CurrencyCode = Enum.Parse<CurrencyCode>(currencyCode.ToString())};
+        var response = await _grpcCurrencyClient.GetCurrentCurrencyRateAsync(currRequest);
+        var roundedValue = Math.Round(response.Value, _apiSettings.CurrentValue.DecimalPlaces);
+        return new ExchangeRates
         {
-            var latestCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (latestCurrencyExchangeData?.Data == null || latestCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(latestCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
-            return new LatestExchangeRates
-            {
-                ValueCode = latestCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
-        {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
+            ValueCode = response.CurrencyCode.ToString(),
+            CurrentValueRate = (decimal)roundedValue
+        };
     }
     
-    public async Task<HistoricalExchangeRates> GetHistoricalCurrencyRateAsync(string currencyCode, DateOnly date)
+    public async Task<ExchangeRatesWithDate> GetHistoricalCurrencyRateAsync(CurrencyType currencyCode, DateOnly date)
     {
         if (date == new DateOnly(1,1,1))
             throw new Exception("Ошибка преобразования даты");
-        var response = await SendRequestToGetHistoricalCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode, date);
-        if (response.IsSuccessStatusCode)
+        var currRequest = new CurrencyRequestWithDate
         {
-            var historicalCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (historicalCurrencyExchangeData?.Data == null || historicalCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(historicalCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
-            return new HistoricalExchangeRates
-            {
-                Date = date,
-                ValueCode = historicalCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-                
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
+            CurrencyCode = Enum.Parse<CurrencyCode>(currencyCode.ToString()),
+            Date = Timestamp.FromDateTime(date.ToDateTime(TimeOnly.MaxValue).ToUniversalTime())
+        };
+        var response = await _grpcCurrencyClient.GetCurrencyRateOnDateAsync(currRequest);
+        var roundedValue = Math.Round(response.Value, _apiSettings.CurrentValue.DecimalPlaces);
+        return new ExchangeRatesWithDate
         {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
+            Date = date,
+            ValueCode = response.CurrencyCode.ToString(),
+            CurrentValueRate = (decimal)roundedValue
+        };
     }
     
     public async Task<SettingsResult> GetSettingsAsync()
     {
-        var response = await SendRequestToGetStatusAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("Ошибка получения информации от сервера!");
-        var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiStatus == null)
-            throw new Exception("Ошибка преобразования данных");
+        var response = await _grpcCurrencyClient.GetSettingsAsync(new Empty());
         return new SettingsResult
         {
-            DefaultCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency,
-            BaseCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency,
-            RequestLimit = apiStatus.Quotas.Month.Total,
-            RequestCount = apiStatus.Quotas.Month.Used,
-            CurrencyRoundCount = _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces
+            DefaultCurrency = _apiSettings.CurrentValue.DefaultCurrency,
+            BaseCurrency = response.BaseCurrencyCode.ToString().ToUpper(),
+            NewRequestsAvailable = response.HasAvailableRequests,
+            CurrencyRoundCount = _apiSettings.CurrentValue.DecimalPlaces
         };
     }
-
-    public async Task<ApiStatus> CheckApiStatusAsync()
-    {
-        var response = await SendRequestToGetStatusAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("Ошибка получения количества доступных запросов!");
-        
-        var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiStatus == null)
-            throw new Exception("Ошибка преобразования данных");
-        return apiStatus;
-    }
-
-    private Task<HttpResponseMessage> SendRequestToGetStatusAsync()
-    {
-        return SendRequestWithPath(_apiSettingsAsOptionsMonitor.CurrentValue.BaseUrl + "/status");
-    }
-    
-    private Task<HttpResponseMessage> SendRequestToGetCurrencyRateAsync(string baseCurrencyCode, string defaultCurrencyCode)
-    {
-        return SendRequestWithPath(_apiSettingsAsOptionsMonitor.CurrentValue.BaseUrl + $"/latest?currencies={defaultCurrencyCode}&base_currency={baseCurrencyCode}");
-    }
-    
-    private Task<HttpResponseMessage> SendRequestToGetHistoricalCurrencyRateAsync(string baseCurrencyCode, string defaultCurrencyCode, DateOnly date)
-    {
-        return SendRequestWithPath(_apiSettingsAsOptionsMonitor.CurrentValue.BaseUrl + $"/historical?currencies={defaultCurrencyCode}&date={date.ToString("yyyy-MM-dd")}&base_currency={baseCurrencyCode}");
-    }
-
-    private async Task<HttpResponseMessage> SendRequestWithPath(string path)
-    {
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apikey", _apiSettingsAsOptionsMonitor.CurrentValue.ApiKey);
-        return await _httpClient.GetAsync(path);
-    }
-    
-    
 }

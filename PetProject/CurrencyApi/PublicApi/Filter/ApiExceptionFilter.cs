@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Exceptions;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
+namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Filter;
 
 public class ApiExceptionFilter : IExceptionFilter
 {

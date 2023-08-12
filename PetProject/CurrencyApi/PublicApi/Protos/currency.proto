@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option csharp_namespace = "Fuse8_ByteMinds.SummerSchool.InternalApi.GrpcContracts";
+option csharp_namespace = "Fuse8_ByteMinds.SummerSchool.PublicApi.GrpcContracts";
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";

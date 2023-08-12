@@ -73,6 +73,7 @@ public class Startup
 						return auditEvent.ToJson();
 					}));
 
+		// Добавление фильтра ошибок
 		services.AddControllers(options =>
 		{
 			options.Filters.Add(typeof(ApiExceptionFilter));
@@ -82,7 +83,7 @@ public class Startup
 		var sectionApiSettings = _configuration.GetRequiredSection("ApiSettings");
 		services.Configure<ApiSettings>(sectionApiSettings);
 		
-		var sectionCacheSettings = _configuration.GetRequiredSection("CacheSettings");
+		var sectionCacheSettings = _configuration.GetRequiredSection("CurrencyCacheSettings");
 		services.Configure<CurrencyCacheSettings>(sectionCacheSettings);
 		
 		services.AddEndpointsApiExplorer();

@@ -2,16 +2,18 @@
 using System.Text.Json.Serialization;
 using Audit.Core;
 using Audit.Http;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Filter;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.GrpcContracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Middlewares;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 using Microsoft.OpenApi.Models;
 
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi;
 
-public class Startup
+public class  Startup
 {
 	private readonly IConfiguration _configuration;
 
@@ -41,7 +43,14 @@ public class Startup
 		// 	logger.LoggingFields = HttpLoggingFields.RequestPath;
 		// });
 
-		services.AddHttpClient<ICurrencyService, CurrencyService>()
+		// Регистрация сервисов
+		services.AddTransient<ICurrencyService, CurrencyService>();
+
+		// Регистрация gRPC клиента
+		services.AddGrpcClient<GrpcCurrency.GrpcCurrencyClient>(o =>
+			{
+				o.Address = new Uri(_configuration["CurrencyGrpcServerAddress"]);
+			})
 			.AddAuditHandler(audit => audit
 				.IncludeRequestBody()
 				.IncludeRequestHeaders()
@@ -65,6 +74,7 @@ public class Startup
 						return auditEvent.ToJson();
 					}));
 
+		// Добавление фильтра ошибок
 		services.AddControllers(options =>
 		{
 			options.Filters.Add(typeof(ApiExceptionFilter));

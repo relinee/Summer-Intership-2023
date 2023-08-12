@@ -1,7 +1,7 @@
-﻿using System.Net;
-using System.Text.Json.Serialization;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -13,12 +13,12 @@ namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
 [Route("currency")]
 public class CurrencyController : ControllerBase
 {
-    private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
+    private readonly IOptionsMonitor<ApiSettings> _apiSettings;
     private readonly ICurrencyService _currencyService;
     
-    public CurrencyController(IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor, ICurrencyService currencyService)
+    public CurrencyController(IOptionsMonitor<ApiSettings> apiSettings, ICurrencyService currencyService)
     {
-        _apiSettingsAsOptionsMonitor = apiSettingsAsOptionsMonitor;
+        _apiSettings = apiSettings;
         _currencyService = currencyService;
     }
 
@@ -38,16 +38,19 @@ public class CurrencyController : ControllerBase
     /// Возвращает если произошла ошибка на сервере
     /// </response>
     [HttpGet]
-    public async Task<ActionResult<LatestExchangeRates>> GetDefaultCurrencyRate()
+    public async Task<ActionResult<ExchangeRates>> GetDefaultCurrencyRate()
     {
-        return await _currencyService.GetCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency);
+        var defaultCurrency = _apiSettings.CurrentValue.DefaultCurrency;
+        var correctedDefaultCurrency =
+            Enum.Parse<CurrencyType>($"{defaultCurrency[0]}{defaultCurrency[1..].ToLower()}");
+        return await _currencyService.GetCurrencyRateAsync(correctedDefaultCurrency);
     }
 
 
     /// <summary>
     /// Получить курс для валюты по выбору 
     /// </summary>
-    /// /// <param name="currencyCode"> Валюта по выбору </param>
+    /// <param name="currencyCode"> Валюта по выбору </param>
     /// <response code="200">
     /// Возвращает если удалось получить курс валют
     /// </response>
@@ -62,7 +65,7 @@ public class CurrencyController : ControllerBase
     /// </response>
     [HttpGet]
     [Route("{currencyCode}")]
-    public async Task<ActionResult<LatestExchangeRates>> GetNotDefaultCurrencyRate(string currencyCode)
+    public async Task<ActionResult<ExchangeRates>> GetNotDefaultCurrencyRate(CurrencyType currencyCode)
     {
         return await _currencyService.GetCurrencyRateAsync(currencyCode);
     }
@@ -86,7 +89,7 @@ public class CurrencyController : ControllerBase
     /// </response>
     [HttpGet]
     [Route("{currencyCode}/{date}")]
-    public async Task<ActionResult<HistoricalExchangeRates>> GetHistoricalCurrencyRate(string currencyCode, DateOnly date)
+    public async Task<ActionResult<ExchangeRatesWithDate>> GetHistoricalCurrencyRate(CurrencyType currencyCode, DateOnly date)
     {
         return await _currencyService.GetHistoricalCurrencyRateAsync(currencyCode, date);
     }
@@ -94,15 +97,11 @@ public class CurrencyController : ControllerBase
     /// <summary>
     /// Получить настроки приложения
     /// </summary>
-    /// <param name="currencyCode"> Валюта по выбору </param>
     /// <response code="200">
-    /// Возвращает если удалось получить курс валют
+    /// Возвращает если удалось получить настройки
     /// </response>
     /// <response code="429">
     /// Возвращает если превышено ограничение по количеству запросов
-    /// </response>
-    /// <response code="404">
-    /// Возвращает если не удалось получить курс для текующей валюты
     /// </response>
     /// <response code="500">
     /// Возвращает если произошла ошибка на сервере

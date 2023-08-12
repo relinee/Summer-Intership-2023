@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
 
 /// <summary>
 /// Настройки приложения
@@ -20,17 +20,11 @@ public record SettingsResult
     public string BaseCurrency { get; init; }
     
     /// <summary>
-    /// Общее количество доступных запросов, полученное от внешнего API (quotas->month->total)
+    /// Есть ли еще доступные запросы
     /// </summary>
-    [JsonPropertyName("requestLimit")]
-    public int RequestLimit { get; init; }
-    
-    /// <summary>
-    /// Количество использованных запросов, полученное от внешнего API (quotas->month->used)
-    /// </summary>
-    [JsonPropertyName("requestCount")]
-    public int RequestCount { get; init; }
-    
+    [JsonPropertyName("newRequestsAvailable")]
+    public bool NewRequestsAvailable { get; init; }
+
     /// <summary>
     /// Количество знаков после запятой, до которого следует округлять значение курса валют
     /// </summary>

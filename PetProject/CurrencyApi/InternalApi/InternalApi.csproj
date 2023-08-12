@@ -22,11 +22,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Cache\" />
-      <Folder Include="Controllers\" />
-    </ItemGroup>
-
-    <ItemGroup>
         <Protobuf Include="Protos\currency.proto" GrpcServices="Server" />
     </ItemGroup>
 

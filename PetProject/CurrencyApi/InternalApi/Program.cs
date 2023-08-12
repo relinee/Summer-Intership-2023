@@ -1,5 +1,4 @@
 using Fuse8_ByteMinds.SummerSchool.InternalApi;
-using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Serilog;
 using Serilog.Events;

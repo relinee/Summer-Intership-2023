@@ -1,6 +1,7 @@
-﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Exceptions;
 
-namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
+namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Middlewares;
 
 public class ApiRateLimitMiddleware
 {
@@ -15,9 +16,8 @@ public class ApiRateLimitMiddleware
 
     public async Task Invoke(HttpContext context)
     {
-        var apiStatus = await _currencyService.CheckApiStatusAsync();
-        var countRequest = apiStatus.Quotas.Month.Remaining; 
-        if (countRequest == 0)
+        var apiStatus = await _currencyService.GetSettingsAsync();
+        if (!apiStatus.NewRequestsAvailable)
             throw new ApiRequestLimitException("Больше запросов нет :(");
         await _next(context);
     }

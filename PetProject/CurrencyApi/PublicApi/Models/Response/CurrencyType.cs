@@ -1,4 +1,4 @@
-﻿namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
+﻿namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
 
 /// <summary>
 /// Типы валют

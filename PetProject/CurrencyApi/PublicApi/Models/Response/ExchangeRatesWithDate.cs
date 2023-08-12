@@ -1,12 +1,18 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
 
 /// <summary>
-/// Последний курс для валюты
+/// Курс для валюты в определенный день
 /// </summary>
-public record LatestExchangeRates
+public record ExchangeRatesWithDate
 {
+    /// <summary>
+    /// Дата актуальности курса
+    /// </summary>
+    [JsonPropertyName("date")]
+    public DateOnly Date { get; init; }
+    
     /// <summary>
     /// Код валюты
     /// </summary>

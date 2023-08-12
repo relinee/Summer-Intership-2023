@@ -1,3 +1,17 @@
 ﻿namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 
-public record CurrencyCacheSettings(string Directory, int ExpirationTimeInMinutes);
+/// <summary>
+/// Настроки для кеширования курсов валют
+/// </summary>
+public record CurrencyCacheSettings
+{
+    /// <summary>
+    /// Путь сохранения кеша
+    /// </summary>
+    public string Directory { init; get; }
+    
+    /// <summary>
+    /// Время актуальности кеша в часах
+    /// </summary>
+    public int ExpirationTimeInHours { init; get; }
+}
