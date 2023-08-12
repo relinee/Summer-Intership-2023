@@ -110,8 +110,6 @@ public class Startup
 			app.UseSwaggerUI();
 		}
 
-		// TODO: проверить так ли работает builder или стоит использовать var builder = WebApplication.CreateBuilder();
-		
 		// Настройка роутинга и эндпоинтов для gRPC сервиса
 		app.UseWhen(
 			predicate: context => context.Connection.LocalPort == _configuration.GetValue<int>("GrpcPort"),
