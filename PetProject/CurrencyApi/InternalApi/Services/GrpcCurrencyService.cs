@@ -15,15 +15,18 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
     private readonly ICachedCurrencyAPI _cachedCurrencyApi;
     private readonly ICurrencyAPI _currencyApi;
     private readonly IOptionsMonitor<ApiSettings> _apiSettings;
+    private readonly ILogger<GrpcCurrencyService> _logger;
 
     public GrpcCurrencyService(
         ICachedCurrencyAPI cachedCurrencyApi,
         ICurrencyAPI currencyApi,
-        IOptionsMonitor<ApiSettings> apiSettings)
+        IOptionsMonitor<ApiSettings> apiSettings,
+        ILogger<GrpcCurrencyService> logger)
     {
         _cachedCurrencyApi = cachedCurrencyApi;
         _currencyApi = currencyApi;
         _apiSettings = apiSettings;
+        _logger = logger;
     }
     
     public override async Task<CurrencyResponse> GetCurrentCurrencyRate(CurrencyRequest request, ServerCallContext context)
@@ -41,13 +44,9 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 Value = (double) currencyRate.Value
             };
         }
-        catch (CurrencyNotFoundException e)
-        {
-            throw new RpcException(new Status(StatusCode.NotFound, "Нет такой валюты"),
-                e.Message);
-        }
         catch (Exception e)
         {
+            _logger.LogError(e, e.Message);
             throw new RpcException(new Status(StatusCode.Internal, "Внутренняя ошибка сервера"),
                 e.Message);
         }
@@ -70,13 +69,9 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 Value = (double) currencyRate.Value
             };
         }
-        catch (CurrencyNotFoundException e)
-        {
-            throw new RpcException(new Status(StatusCode.NotFound, "Нет такой валюты"),
-                e.Message);
-        }
         catch (Exception e)
         {
+            _logger.LogError(e, e.Message);
             throw new RpcException(new Status(StatusCode.Internal, "Внутренняя ошибка сервера"),
                 e.Message);
         }
@@ -97,13 +92,9 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 HasAvailableRequests = await _currencyApi.IsNewRequestsAvailable(cancellationToken)
             };
         }
-        catch (CurrencyNotFoundException e)
-        {
-            throw new RpcException(new Status(StatusCode.NotFound, "Нет такой валюты"),
-                e.Message);
-        }
         catch (Exception e)
         {
+            _logger.LogError(e, e.Message);
             throw new RpcException(new Status(StatusCode.Internal, "Внутренняя ошибка сервера"),
                 e.Message);
         }
