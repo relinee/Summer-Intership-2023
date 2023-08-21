@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
@@ -29,14 +28,14 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     public async Task<CurrencyDTO> GetCurrentCurrencyAsync(CurrencyType currencyType, CancellationToken cancellationToken)
     {
         var cachedCurrencies = GetCachedDataWithoutExpirationTime(
-            date: $"{DateTime.UtcNow:yyyy_MM_dd}",
+            date: $"{DateTimeOffset.UtcNow:yyyy_MM_dd}",
             expirationTimeInHours: _cacheSettings.CurrentValue.ExpirationTimeInHours);
         if (cachedCurrencies != null) return GetCurrentCurrencyDto(cachedCurrencies, currencyType);
         
         var currentCurrencies = await _currencyApi.GetAllCurrentCurrenciesAsync(_apiSettings.CurrentValue.BaseCurrency, cancellationToken);
         await CacheCurrenciesOnDateAsync(
             currencies: currentCurrencies,
-            date: DateTime.UtcNow);
+            date: DateTimeOffset.UtcNow);
 
         return GetCurrentCurrencyDto(currentCurrencies, currencyType);
     }
@@ -76,8 +75,10 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     {
         var cacheFilename = FindCacheFilenameByDate(date);
         if (cacheFilename == null) return null;
-        var dateTimeFromFilename = DateTime.ParseExact(Path.GetFileNameWithoutExtension(cacheFilename)[4..], DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None);
-        var timeDiff = DateTime.UtcNow - dateTimeFromFilename;
+        var dateTimeFromFilename = DateTimeOffset.ParseExact(
+            Path.GetFileNameWithoutExtension(cacheFilename)[4..],
+            DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None);
+        var timeDiff = DateTimeOffset.UtcNow - dateTimeFromFilename;
         return timeDiff.TotalHours < expirationTimeInHours
             ? LoadDataFromCacheFile(cacheFilename) : null;
     }
@@ -111,15 +112,16 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
         return maxTimestampFilename;
     }
     
+    // TODO : перенести/изменить
     /// <summary>
     /// Получение DateTime из названия файла
     /// </summary>
     /// <param name="filename">Название файла</param>
-    /// <returns>Если из названия файла получилось извлечь дату, то дата из него, иначе DateTime.MinValue</returns>
-    private static DateTime ExtractDateTimeFromFilename(string filename)
+    /// <returns>Если из названия файла получилось извлечь дату, то дата из него. Иначе null</returns>
+    private static DateTimeOffset? ExtractDateTimeFromFilename(string filename)
     {
         var filenameWithoutExtension = Path.GetFileNameWithoutExtension(filename);
-        return DateTime.TryParseExact(filenameWithoutExtension, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None,  out DateTime dateTime) ? dateTime : DateTime.MinValue;
+        return DateTimeOffset.TryParseExact(filenameWithoutExtension, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None,  out DateTimeOffset dateTime) ? dateTime : null;
     }
     
     /// <summary>
@@ -134,26 +136,12 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
         return JsonSerializer.Deserialize<Currency[]>(json);
     }
 
-    private async Task CacheCurrenciesAsync(Currency[] currencies)
-    {
-        if (!Directory.Exists(_cacheSettings.CurrentValue.Directory))
-        {
-            Directory.CreateDirectory(_cacheSettings.CurrentValue.Directory);
-        }
-
-        var cacheFilename = Path.Combine(
-            _cacheSettings.CurrentValue.Directory,
-            $"{_apiSettings.CurrentValue.BaseCurrency}_{DateTime.UtcNow.ToString(DateFormat)}.json");
-        var json = JsonSerializer.Serialize(currencies);
-        await File.WriteAllTextAsync(cacheFilename, json);
-    }
-    
     /// <summary>
     /// Запись в файл массива курсов валют на дату
     /// </summary>
     /// <param name="currencies">Массив курсов валют</param>
     /// <param name="date">Дата актуальности курсов</param>
-    private async Task CacheCurrenciesOnDateAsync(Currency[] currencies, DateTime date)
+    private async Task CacheCurrenciesOnDateAsync(Currency[] currencies, DateTimeOffset date)
     {
         if (!Directory.Exists(_cacheSettings.CurrentValue.Directory))
         {

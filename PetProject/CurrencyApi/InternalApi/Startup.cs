@@ -36,13 +36,7 @@ public class Startup
 		;
 
 		// Регистрация сервисов
-		services.AddHttpClient<ICurrencyService, CurrencyService>()
-			.AddAuditHandler(audit => audit
-				.IncludeRequestBody()
-				.IncludeRequestHeaders()
-				.IncludeResponseBody()
-				.IncludeResponseHeaders()
-				.IncludeContentHeaders());
+		services.AddTransient<ICurrencyRestService, CurrencyRestService>();
 
 		services.AddHttpClient<ICurrencyAPI, CurrencyService>()
 			.AddAuditHandler(audit => audit

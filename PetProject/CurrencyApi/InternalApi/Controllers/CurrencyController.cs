@@ -1,10 +1,6 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
-using Fuse8_ByteMinds.SummerSchool.InternalApi.Exceptions;
-using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using Enum = System.Enum;
 
 namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Controllers;
 
@@ -14,18 +10,13 @@ namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Controllers;
 [Route("currency")]
 public class CurrencyController : Controller
 {
-    private readonly ICachedCurrencyAPI _cachedCurrencyApi;
-    private readonly ICurrencyAPI _currencyApi;
-    private readonly IOptionsMonitor<ApiSettings> _apiSettings;
+    private readonly ICurrencyRestService _currencyRestService;
+    private readonly CancellationTokenSource _cancellationTokenSource;
 
-    public CurrencyController(
-        ICachedCurrencyAPI cachedCurrencyApi,
-        ICurrencyAPI currencyApi,
-        IOptionsMonitor<ApiSettings> apiSettings)
+    public CurrencyController(ICurrencyRestService currencyRestService)
     {
-        _cachedCurrencyApi = cachedCurrencyApi;
-        _currencyApi = currencyApi;
-        _apiSettings = apiSettings;
+        _currencyRestService = currencyRestService;
+        _cancellationTokenSource = new CancellationTokenSource();
     }
 
     /// <summary>
@@ -48,10 +39,8 @@ public class CurrencyController : Controller
     [Route("{currencyType}")]
     public async Task<ActionResult<CurrencyDTO>> GetCurrentCurrencyRate(CurrencyType currencyType)
     {
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
-        await HealthCheck(cancellationToken);
-        var currencyRate = await _cachedCurrencyApi.GetCurrentCurrencyAsync(
+        var cancellationToken = _cancellationTokenSource.Token;
+        var currencyRate = await _currencyRestService.GetCurrentCurrencyRateAsync(
             currencyType: currencyType,
             cancellationToken: cancellationToken);
         return currencyRate;
@@ -78,10 +67,8 @@ public class CurrencyController : Controller
     [Route("{currencyType}/{dateTime}")]
     public async Task<ActionResult<CurrencyDTO>> GetCurrencyRateOnDate(CurrencyType currencyType, DateTime dateTime)
     {
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
-        await HealthCheck(cancellationToken);
-        var currencyRate = await _cachedCurrencyApi.GetCurrencyOnDateAsync(
+        var cancellationToken = _cancellationTokenSource.Token;
+        var currencyRate = await _currencyRestService.GetCurrencyRateOnDateAsync(
             currencyType: currencyType,
             date: DateOnly.FromDateTime(dateTime),
             cancellationToken: cancellationToken);
@@ -101,21 +88,10 @@ public class CurrencyController : Controller
     /// Возвращает если произошла ошибка на сервере
     /// </response>
     [HttpGet("settings")]
-    public async Task<ActionResult<CurrencySettings>> GetSettings()
+    public async Task<ActionResult<CurrencySettings>> GetCurrencySettings()
     {
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
-        var baseCurrencyCode = _apiSettings.CurrentValue.BaseCurrency;
-        var convertedBaseCurrCode =
-            $"{baseCurrencyCode[0]}{char.ToLower(baseCurrencyCode[1])}{char.ToLower(baseCurrencyCode[2])}";
-        var isNewRequestAvailable = await _currencyApi.IsNewRequestsAvailable(cancellationToken);
-        return new CurrencySettings(Enum.Parse<CurrencyType>(convertedBaseCurrCode), isNewRequestAvailable);
+        var cancellationToken = _cancellationTokenSource.Token;
+        return await _currencyRestService.GetSettingsAsync(cancellationToken);
     }
-
-    private async Task HealthCheck(CancellationToken cancellationToken)
-    {
-        var apiStatus = await _currencyApi.IsNewRequestsAvailable(cancellationToken);
-        if (!apiStatus)
-            throw new ApiRequestLimitException("Больше запросов нет :(");
-    }
+    
 }

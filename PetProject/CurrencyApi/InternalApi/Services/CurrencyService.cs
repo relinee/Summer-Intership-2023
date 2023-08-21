@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Services;
 
-public class CurrencyService : ICurrencyService, ICurrencyAPI
+public class CurrencyService : ICurrencyAPI
 {
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<ApiSettings> _apiSettings;
@@ -17,77 +17,6 @@ public class CurrencyService : ICurrencyService, ICurrencyAPI
     {
         _httpClient = httpClient;
         _apiSettings = apiSettings;
-    }
-
-    public async Task<ExchangeRates> GetCurrencyRateAsync(string currencyCode)
-    {
-        var response = await SendRequestToGetCurrencyRateAsync(_apiSettings.CurrentValue.BaseCurrency, currencyCode);
-        if (response.IsSuccessStatusCode)
-        {
-            var latestCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (latestCurrencyExchangeData?.Data == null || latestCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(latestCurrencyExchangeData.Data[currencyCode].Value, _apiSettings.CurrentValue.DecimalPlaces);
-            return new ExchangeRates
-            {
-                ValueCode = latestCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
-        {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
-    }
-    
-    public async Task<ExchangeRatesWithDate> GetHistoricalCurrencyRateAsync(string currencyCode, DateOnly date)
-    {
-        if (date == new DateOnly(1,1,1))
-            throw new Exception("Ошибка преобразования даты");
-        var response = await SendRequestToGetHistoricalCurrencyRateAsync(_apiSettings.CurrentValue.BaseCurrency, currencyCode, date);
-        if (response.IsSuccessStatusCode)
-        {
-            var historicalCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (historicalCurrencyExchangeData?.Data == null || historicalCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(historicalCurrencyExchangeData.Data[currencyCode].Value, _apiSettings.CurrentValue.DecimalPlaces);
-            return new ExchangeRatesWithDate
-            {
-                Date = date,
-                ValueCode = historicalCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
-        {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
-    }
-    
-    public async Task<SettingsResult> GetSettingsAsync()
-    {
-        var response = await SendRequestToGetStatusAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("Ошибка получения информации от сервера!");
-        var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiStatus == null)
-            throw new Exception("Ошибка преобразования данных");
-        return new SettingsResult
-        {
-            DefaultCurrency = _apiSettings.CurrentValue.DefaultCurrency,
-            BaseCurrency = _apiSettings.CurrentValue.BaseCurrency,
-            RequestLimit = apiStatus.Quotas.Month.Total,
-            RequestCount = apiStatus.Quotas.Month.Used,
-            CurrencyRoundCount = _apiSettings.CurrentValue.DecimalPlaces
-        };
     }
 
     public async Task<Currency[]> GetAllCurrentCurrenciesAsync(string baseCurrency, CancellationToken cancellationToken)
@@ -159,7 +88,6 @@ public class CurrencyService : ICurrencyService, ICurrencyAPI
             throw new Exception("Ошибка преобразования данных");
         return apiStatus.Quotas.Month.Used < apiStatus.Quotas.Month.Total;
     }
-
 
     private Task<HttpResponseMessage> SendRequestToGetStatusAsync()
     {

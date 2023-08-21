@@ -1,5 +1,4 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
 using Microsoft.AspNetCore.Mvc;
