@@ -1,5 +1,4 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
-using Fuse8_ByteMinds.SummerSchool.InternalApi.Exceptions;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.GrpcContracts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
@@ -101,4 +100,83 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
         
     }
 
+    public override async Task<CurrencyResponse> GetCurrentCurrencyRateRelativeBaseCurrency(CurrencyRequestWithBaseCurrency request, ServerCallContext context)
+    {
+        var cancelTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancelTokenSource.Token;
+        try
+        {
+            var cur = Enum.Parse<CurrencyType>(request.CurrencyCode.ToString());
+            var curBase = Enum.Parse<CurrencyType>(request.BaseCurrencyCode.ToString());
+            var currencyRateRelativeCacheBase = await _cachedCurrencyApi.GetCurrentCurrencyAsync(
+                currencyType: cur,
+                cancellationToken: cancellationToken);
+            double curValue;
+            if (curBase.ToString().ToUpper() == _apiSettings.CurrentValue.BaseCurrency)
+            {
+               curValue = (double)currencyRateRelativeCacheBase.Value;
+            }
+            else
+            {
+                var baseCurRateRelativeCacheBase = await _cachedCurrencyApi.GetCurrentCurrencyAsync(
+                    currencyType: curBase,
+                    cancellationToken: cancellationToken);
+                curValue = (double)(currencyRateRelativeCacheBase.Value / baseCurRateRelativeCacheBase.Value);
+            }
+            
+            return new CurrencyResponse
+            {
+                CurrencyCode = (CurrencyCode)currencyRateRelativeCacheBase.CurrencyType,
+                Value = curValue
+            };
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.Internal, "Внутренняя ошибка сервера"),
+                e.Message);
+        }
+    }
+
+    public override async Task<CurrencyResponse> GetCurrencyRateOnDateRelativeBaseCurrency(CurrencyRequestWithBaseCurrencyAndDate request,
+        ServerCallContext context)
+    {
+        // 10.08.2023 в секундах = 1691625600
+        var cancelTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancelTokenSource.Token;
+        try
+        {
+            var cur = Enum.Parse<CurrencyType>(request.CurrencyCode.ToString());
+            var curBase = Enum.Parse<CurrencyType>(request.BaseCurrencyCode.ToString());
+            var currencyRateRelativeCacheBase = await _cachedCurrencyApi.GetCurrencyOnDateAsync(
+                currencyType: cur,
+                date: DateOnly.FromDateTime(request.Date.ToDateTime()),
+                cancellationToken: cancellationToken);
+            double curValue;
+            if (curBase.ToString().ToUpper() == _apiSettings.CurrentValue.BaseCurrency)
+            {
+                curValue = (double)currencyRateRelativeCacheBase.Value;
+            }
+            else
+            {
+                var baseCurRateRelativeCacheBase = await _cachedCurrencyApi.GetCurrencyOnDateAsync(
+                    currencyType: curBase,
+                    date: DateOnly.FromDateTime(request.Date.ToDateTime()),
+                    cancellationToken: cancellationToken);
+                curValue = (double)(currencyRateRelativeCacheBase.Value / baseCurRateRelativeCacheBase.Value);
+            }
+            
+            return new CurrencyResponse
+            {
+                CurrencyCode = (CurrencyCode)currencyRateRelativeCacheBase.CurrencyType,
+                Value = curValue
+            };
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.Internal, "Внутренняя ошибка сервера"),
+                e.Message);
+        }
+    }
 }

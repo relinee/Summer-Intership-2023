@@ -52,6 +52,8 @@ public class CurrencyRestService : ICurrencyRestService
         return new CurrencySettings(Enum.Parse<CurrencyType>(convertedBaseCurrCode), isNewRequestAvailable);
     }
 
+    // TODO: сделатьв контроллере вызов хелсчека
+    // TODO: изменить на другое - не проверку количества запросов ( и видимо сделать мидлварку на проверку запросов) 
     private async Task HealthCheck(CancellationToken cancellationToken)
     {
         var apiStatus = await _currencyApi.IsNewRequestsAvailable(cancellationToken);

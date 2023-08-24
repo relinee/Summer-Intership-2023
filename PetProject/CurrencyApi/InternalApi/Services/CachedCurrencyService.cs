@@ -1,6 +1,6 @@
-﻿using System.Globalization;
-using System.Text.Json;
-using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
+﻿using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts.Entities;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
 using Microsoft.Extensions.Options;
@@ -13,27 +13,30 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     private readonly ICurrencyAPI _currencyApi;
     private readonly IOptionsMonitor<CurrencyCacheSettings> _cacheSettings;
     private readonly IOptionsMonitor<ApiSettings> _apiSettings;
-    private const string DateFormat = "yyyy_MM_dd_HH_mm_ss";
+    private readonly CurrencyRateDbContext _currencyRateDbContext;
 
     public CachedCurrencyService(
         ICurrencyAPI currencyApi,
         IOptionsMonitor<CurrencyCacheSettings> cacheSettings,
-        IOptionsMonitor<ApiSettings> apiSettings)
+        IOptionsMonitor<ApiSettings> apiSettings,
+        CurrencyRateDbContext currencyRateDbContext)
     {
         _currencyApi = currencyApi;
         _cacheSettings = cacheSettings;
         _apiSettings = apiSettings;
+        _currencyRateDbContext = currencyRateDbContext;
     }
     
     public async Task<CurrencyDTO> GetCurrentCurrencyAsync(CurrencyType currencyType, CancellationToken cancellationToken)
     {
-        var cachedCurrencies = GetCachedDataWithoutExpirationTime(
-            date: $"{DateTimeOffset.UtcNow:yyyy_MM_dd}",
+        var cachedCurrencies = GetDataFromDbWithoutExpirationTime(
+            dateTime: DateTimeOffset.UtcNow,
             expirationTimeInHours: _cacheSettings.CurrentValue.ExpirationTimeInHours);
         if (cachedCurrencies != null) return GetCurrentCurrencyDto(cachedCurrencies, currencyType);
         
         var currentCurrencies = await _currencyApi.GetAllCurrentCurrenciesAsync(_apiSettings.CurrentValue.BaseCurrency, cancellationToken);
-        await CacheCurrenciesOnDateAsync(
+        
+        CacheCurrenciesOnDateAsync(
             currencies: currentCurrencies,
             date: DateTimeOffset.UtcNow);
 
@@ -42,11 +45,12 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     
     public async Task<CurrencyDTO> GetCurrencyOnDateAsync(CurrencyType currencyType, DateOnly date, CancellationToken cancellationToken)
     {
-        var cachedCurrencies = GetCachedData($"{date:yyyy_MM_dd}");
+        var cachedCurrencies = GetDataFromDb(date.ToDateTime(TimeOnly.MaxValue));
         if (cachedCurrencies != null) return GetCurrentCurrencyDto(cachedCurrencies, currencyType);
         
         var currenciesRateOnDate = await _currencyApi.GetAllCurrenciesOnDateAsync(_apiSettings.CurrentValue.BaseCurrency, date, cancellationToken);
-        await CacheCurrenciesOnDateAsync(
+        
+        CacheCurrenciesOnDateAsync(
             currencies: currenciesRateOnDate.Currencies,
             date: currenciesRateOnDate.LastUpdatedAt.ToUniversalTime());
 
@@ -66,91 +70,60 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     }
 
     /// <summary>
-    /// Получение из кеша курсов валют без истечения срока давности
+    /// Получение из базы данных курсов валют без истечения срока давности
     /// </summary>
-    /// <param name="date">Дата, на которую нужен курс валют</param>
+    /// <param name="dateTime">Дата, на которую нужен курс валют</param>
     /// <param name="expirationTimeInHours">Срок актуальности кеша в часах</param>
-    /// <returns>Если срок давности не вышел и данные в кеше есть, то массив курсов валют. Иначе null</returns>
-    private Currency[]? GetCachedDataWithoutExpirationTime(string date, double expirationTimeInHours)
+    /// <returns>Если срок давности не вышел и данные в базе данных есть, то массив курсов валют. Иначе null</returns>
+    private Currency[]? GetDataFromDbWithoutExpirationTime(DateTimeOffset dateTime, double expirationTimeInHours)
     {
-        var cacheFilename = FindCacheFilenameByDate(date);
-        if (cacheFilename == null) return null;
-        var dateTimeFromFilename = DateTimeOffset.ParseExact(
-            Path.GetFileNameWithoutExtension(cacheFilename)[4..],
-            DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None);
-        var timeDiff = DateTimeOffset.UtcNow - dateTimeFromFilename;
-        return timeDiff.TotalHours < expirationTimeInHours
-            ? LoadDataFromCacheFile(cacheFilename) : null;
-    }
-    
-    /// <summary>
-    /// Получение из кеша курсов валют на дату
-    /// </summary>
-    /// <param name="date">Дата, на которую нужно получить курсы валют</param>
-    /// <returns>Если данные в кеше есть, то массив курсов валют. Иначе null</returns>
-    private Currency[]? GetCachedData(string date)
-    {
-        var cacheFilename = FindCacheFilenameByDate(date);
-        return cacheFilename == null ? null : LoadDataFromCacheFile(cacheFilename);
-    }
-    
-    /// <summary>
-    /// Найти максимальное по времени название файла в кеше по дате
-    /// </summary>
-    /// <param name="date">Дата для поиска кеша</param>
-    /// <returns>Если файлы с такой датой и базовой валютой есть, то максимальное по времени название файла в кеше. Иначе null</returns>
-    private string? FindCacheFilenameByDate(string date)
-    {
-        if (!Directory.Exists(_cacheSettings.CurrentValue.Directory)) return null;
-
-        var cacheFiles = Directory.GetFiles(
-            _cacheSettings.CurrentValue.Directory,
-            $"{_apiSettings.CurrentValue.BaseCurrency}_{date}*.json");
-        if (cacheFiles.Length <= 0) return null;
+        var currenciesRates = _currencyRateDbContext.Currencies
+            .Where(c => c.BaseCurrency == _apiSettings.CurrentValue.BaseCurrency)
+            .OrderByDescending(c => c.DateTime)
+            .FirstOrDefault();
+        if (currenciesRates == null) return null;
         
-        var maxTimestampFilename = cacheFiles.OrderByDescending(ExtractDateTimeFromFilename).First();
-        return maxTimestampFilename;
-    }
-    
-    // TODO : перенести/изменить
-    /// <summary>
-    /// Получение DateTime из названия файла
-    /// </summary>
-    /// <param name="filename">Название файла</param>
-    /// <returns>Если из названия файла получилось извлечь дату, то дата из него. Иначе null</returns>
-    private static DateTimeOffset? ExtractDateTimeFromFilename(string filename)
-    {
-        var filenameWithoutExtension = Path.GetFileNameWithoutExtension(filename);
-        return DateTimeOffset.TryParseExact(filenameWithoutExtension, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None,  out DateTimeOffset dateTime) ? dateTime : null;
-    }
-    
-    /// <summary>
-    /// Получение курсов валют из файла
-    /// </summary>
-    /// <param name="cacheFilename">Название файла</param>
-    /// <returns>Если файл с таким названием есть, то массив курсов валют. Иначе null</returns>
-    private static Currency[]? LoadDataFromCacheFile(string cacheFilename)
-    {
-        if (!File.Exists(cacheFilename)) return null;
-        var json = File.ReadAllText(cacheFilename);
-        return JsonSerializer.Deserialize<Currency[]>(json);
+        var timeDiff = dateTime - currenciesRates.DateTime;
+        return timeDiff.TotalHours < expirationTimeInHours
+            ? Array.ConvertAll(currenciesRates.Currencies, ConvertCurrencyRateToCurrency) : null;
     }
 
     /// <summary>
-    /// Запись в файл массива курсов валют на дату
+    /// Получение из базы данных курсов валют на дату
+    /// </summary>
+    /// <param name="dateTime">Дата, на которую нужно получить курсы валют</param>
+    /// <returns>Если данные в базе данных есть, то массив курсов валют. Иначе null</returns>
+    private Currency[]? GetDataFromDb(DateTimeOffset dateTime)
+    {
+        var currenciesRates = _currencyRateDbContext.Currencies
+            .Where(c =>
+                c.BaseCurrency == _apiSettings.CurrentValue.BaseCurrency &&
+                DateOnly.FromDateTime(c.DateTime.Date) == DateOnly.FromDateTime(dateTime.Date))
+            .OrderByDescending(c => c.DateTime)
+            .FirstOrDefault();
+        return currenciesRates == null ? null : Array.ConvertAll(currenciesRates.Currencies, ConvertCurrencyRateToCurrency);
+    }
+
+    /// <summary>
+    /// Запись в базу данных массива курсов валют на дату
     /// </summary>
     /// <param name="currencies">Массив курсов валют</param>
     /// <param name="date">Дата актуальности курсов</param>
-    private async Task CacheCurrenciesOnDateAsync(Currency[] currencies, DateTimeOffset date)
+    private void CacheCurrenciesOnDateAsync(Currency[] currencies, DateTimeOffset date)
     {
-        if (!Directory.Exists(_cacheSettings.CurrentValue.Directory))
+        var currenciesRates = new CurrenciesRates
         {
-            Directory.CreateDirectory(_cacheSettings.CurrentValue.Directory);
-        }
-        var cacheFilename = Path.Combine(
-            _cacheSettings.CurrentValue.Directory,
-            $"{_apiSettings.CurrentValue.BaseCurrency}_{date.ToString(DateFormat)}.json");
-        var json = JsonSerializer.Serialize(currencies);
-        await File.WriteAllTextAsync(cacheFilename, json);
+            BaseCurrency = _apiSettings.CurrentValue.BaseCurrency,
+            Currencies = Array.ConvertAll(currencies, ConvertCurrencyToCurrencyRate),
+            DateTime = date
+        };
+        _currencyRateDbContext.Add(currenciesRates);
+        _currencyRateDbContext.SaveChanges();
     }
+
+    private static Currency ConvertCurrencyRateToCurrency(CurrencyRate currencyRate)
+        => new (currencyRate.Code, currencyRate.Value);
+    
+    private static CurrencyRate ConvertCurrencyToCurrencyRate(Currency currency) 
+        => new() {Code = currency.Code, Value = currency.Value};
 }

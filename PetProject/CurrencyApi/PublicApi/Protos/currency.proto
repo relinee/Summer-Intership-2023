@@ -14,6 +14,12 @@ service GrpcCurrency {
 
   // Получить настройки
   rpc GetSettings(google.protobuf.Empty) returns (SettingsResponse);
+
+  // Получить текущий курс определенной валюты относительно некоторой другой
+  rpc GetCurrentCurrencyRateRelativeBaseCurrency(CurrencyRequestWithBaseCurrency) returns (CurrencyResponse);
+
+  // Получить курс определенной валюты относительно некоторой другой на конкретную дату
+  rpc GetCurrencyRateOnDateRelativeBaseCurrency(CurrencyRequestWithBaseCurrencyAndDate) returns (CurrencyResponse);
 }
 
 message CurrencyRequest {
@@ -23,6 +29,17 @@ message CurrencyRequest {
 message CurrencyRequestWithDate {
   CurrencyCode currencyCode = 1;
   google.protobuf.Timestamp date = 2;
+}
+
+message CurrencyRequestWithBaseCurrency {
+  CurrencyCode currencyCode = 1;
+  CurrencyCode baseCurrencyCode = 2;
+}
+
+message CurrencyRequestWithBaseCurrencyAndDate {
+  CurrencyCode currencyCode = 1;
+  CurrencyCode baseCurrencyCode = 2;
+  google.protobuf.Timestamp date = 3;
 }
 
 message CurrencyResponse {

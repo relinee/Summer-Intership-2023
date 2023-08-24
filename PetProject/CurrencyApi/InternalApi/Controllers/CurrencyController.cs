@@ -93,5 +93,9 @@ public class CurrencyController : Controller
         var cancellationToken = _cancellationTokenSource.Token;
         return await _currencyRestService.GetSettingsAsync(cancellationToken);
     }
-    
+
+    [HttpGet("health")]
+    public string IsHealth() => "Healthy!";
+
+    // TODO: сделать тут хелсчек как в презентации
 }

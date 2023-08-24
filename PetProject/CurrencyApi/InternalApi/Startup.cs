@@ -3,11 +3,15 @@ using System.Text.Json.Serialization;
 using Audit.Core;
 using Audit.Http;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Filter;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Middlewares;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.OpenApi.Models;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace Fuse8_ByteMinds.SummerSchool.InternalApi;
 
@@ -79,6 +83,24 @@ public class Startup
 		
 		var sectionCacheSettings = _configuration.GetRequiredSection("CurrencyCacheSettings");
 		services.Configure<CurrencyCacheSettings>(sectionCacheSettings);
+		
+		// Регистрация DbContext
+		services.AddDbContext<CurrencyRateDbContext>(
+			optionsBuilder =>
+			{
+				optionsBuilder
+					.UseNpgsql(
+						connectionString: _configuration.GetConnectionString("currency_api"),
+						npgsqlOptionsAction: sqlOptionsBuilder =>
+						{
+							// Переподключение при ошибке
+							sqlOptionsBuilder.EnableRetryOnFailure();
+							// Добавление истории миграций
+							sqlOptionsBuilder.MigrationsHistoryTable(HistoryRepository.DefaultTableName, "cur");
+						}
+					).UseSnakeCaseNamingConvention(); // Нейминг в виде снейк кейса
+			}
+		);
 		
 		services.AddEndpointsApiExplorer();
 		services.AddSwaggerGen(options =>

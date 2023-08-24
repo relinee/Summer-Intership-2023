@@ -21,6 +21,8 @@ public class CurrencyService : ICurrencyAPI
 
     public async Task<Currency[]> GetAllCurrentCurrenciesAsync(string baseCurrency, CancellationToken cancellationToken)
     {
+        // TODO : добавить проверку на количество запросов
+        
         var response = await SendRequestToGetCurrencyRateAsync(baseCurrency, "");
         if (response.IsSuccessStatusCode)
         {

@@ -38,10 +38,30 @@ public class ApiExceptionFilter : IExceptionFilter
                 context.Result = result;
                 break;
             }
+            case CurrencyFavouriteNotFoundException:
+            {
+                var result = new ObjectResult("Такого избранного не существует")
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+                context.ExceptionHandled = true;
+                context.Result = result;
+                break;
+            }
+            case CurrencyFavouriteIsAlreadyExistError:
+            {
+                var result = new ObjectResult("Избранное с такими параметрами уже существует")
+                {
+                    StatusCode = StatusCodes.Status409Conflict
+                };
+                context.ExceptionHandled = true;
+                context.Result = result;
+                break;
+            }
             default:
             {
                 _logger.LogError(context.Exception, context.Exception.Message);
-                var result = new ObjectResult("Internal Server Error")
+                var result = new ObjectResult("Внутренняя ошибка сервера")
                 {
                     StatusCode = StatusCodes.Status500InternalServerError
                 };
