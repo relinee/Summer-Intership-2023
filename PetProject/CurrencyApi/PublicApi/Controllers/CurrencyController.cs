@@ -14,11 +14,18 @@ public class CurrencyController : ControllerBase
 {
     private readonly IOptionsMonitor<ApiSettings> _apiSettings;
     private readonly ICurrencyService _currencyService;
+    private readonly CancellationTokenSource _cancellationTokenSource;
+    private readonly ICurrencyServiceByFavouriteName _currencyServiceByFavouriteName;
     
-    public CurrencyController(IOptionsMonitor<ApiSettings> apiSettings, ICurrencyService currencyService)
+    public CurrencyController(
+        IOptionsMonitor<ApiSettings> apiSettings,
+        ICurrencyService currencyService,
+        ICurrencyServiceByFavouriteName currencyServiceByFavouriteName)
     {
         _apiSettings = apiSettings;
         _currencyService = currencyService;
+        _cancellationTokenSource = new CancellationTokenSource();
+        _currencyServiceByFavouriteName = currencyServiceByFavouriteName;
     }
 
     /// <summary>
@@ -42,7 +49,7 @@ public class CurrencyController : ControllerBase
         var defaultCurrency = _apiSettings.CurrentValue.DefaultCurrency;
         var correctedDefaultCurrency =
             Enum.Parse<CurrencyType>($"{defaultCurrency[0]}{defaultCurrency[1..].ToLower()}");
-        return await _currencyService.GetCurrencyRateAsync(correctedDefaultCurrency);
+        return await _currencyService.GetCurrencyRateAsync(correctedDefaultCurrency, _cancellationTokenSource.Token);
     }
 
 
@@ -66,7 +73,7 @@ public class CurrencyController : ControllerBase
     [Route("{currencyCode}")]
     public async Task<ActionResult<ExchangeRates>> GetNotDefaultCurrencyRate(CurrencyType currencyCode)
     {
-        return await _currencyService.GetCurrencyRateAsync(currencyCode);
+        return await _currencyService.GetCurrencyRateAsync(currencyCode, _cancellationTokenSource.Token);
     }
 
     /// <summary>
@@ -90,7 +97,7 @@ public class CurrencyController : ControllerBase
     [Route("{currencyCode}/{date}")]
     public async Task<ActionResult<ExchangeRatesWithDate>> GetHistoricalCurrencyRate(CurrencyType currencyCode, DateOnly date)
     {
-        return await _currencyService.GetHistoricalCurrencyRateAsync(currencyCode, date);
+        return await _currencyService.GetHistoricalCurrencyRateAsync(currencyCode, date, _cancellationTokenSource.Token);
     }
 
     /// <summary>
@@ -108,6 +115,60 @@ public class CurrencyController : ControllerBase
     [HttpGet("settings")]
     public async Task<ActionResult<SettingsResult>> GetSettings()
     {
-        return await _currencyService.GetSettingsAsync();
+        return await _currencyService.GetSettingsAsync(_cancellationTokenSource.Token);
+    }
+
+    /// <summary>
+    /// Получить курс валют по названию избранного
+    /// </summary>
+    /// <param name="name">Название избранного</param>
+    /// <summary>
+    /// Получить настроки приложения
+    /// </summary>
+    /// <response code="200">
+    /// Возвращает если удалось получить настройки
+    /// </response>
+    /// <response code="429">
+    /// Возвращает если превышено ограничение по количеству запросов
+    /// </response>
+    /// <response code="500">
+    /// Возвращает если произошла ошибка на сервере
+    /// </response>
+    /// <response code="404">
+    /// Возвращает если избранного с таким именем нет
+    /// </response>
+    [HttpGet]
+    [Route("favourite/{name}")]
+    public async Task<ActionResult<ExchangeRates>> GetNotCurrencyRateByFavouriteName(string name)
+    {
+        return await _currencyServiceByFavouriteName.GetCurrencyRateByFavouriteNameAsync(name, _cancellationTokenSource.Token);
+    }
+
+    /// <summary>
+    /// Получить курс валют по названию избранного на дату
+    /// </summary>
+    /// <param name="name">Название избранного</param>
+    /// <param name="date">Дата в формате YYYY-MM-DD</param>
+    /// <summary>
+    /// Получить настроки приложения
+    /// </summary>
+    /// <response code="200">
+    /// Возвращает если удалось получить настройки
+    /// </response>
+    /// <response code="429">
+    /// Возвращает если превышено ограничение по количеству запросов
+    /// </response>
+    /// <response code="500">
+    /// Возвращает если произошла ошибка на сервере
+    /// </response>
+    /// <response code="404">
+    /// Возвращает если избранного с таким именем нет
+    /// </response>
+    [HttpGet]
+    [Route("favourite/{name}/{date}")]
+    public async Task<ActionResult<ExchangeRatesWithDate>> GetNotCurrencyRateByFavouriteNameOnDate(string name, DateOnly date)
+    {
+        return await _currencyServiceByFavouriteName.GetCurrencyRateOnDateByFavouriteNameAsync(name, date,
+            _cancellationTokenSource.Token);
     }
 }

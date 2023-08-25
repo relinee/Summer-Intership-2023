@@ -49,6 +49,7 @@ public class  Startup
 		// Регистрация сервисов
 		services.AddScoped<ICurrencyService, CurrencyService>();
 		services.AddScoped<ICurrencyFavouriteService, CurrencyFavouriteService>();
+		services.AddScoped<ICurrencyServiceByFavouriteName, CurrencyService>();
 
 		// Регистрация gRPC клиента
 		services.AddGrpcClient<GrpcCurrency.GrpcCurrencyClient>(o =>

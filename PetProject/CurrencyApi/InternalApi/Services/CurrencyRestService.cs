@@ -25,7 +25,6 @@ public class CurrencyRestService : ICurrencyRestService
     
     public async Task<CurrencyDTO> GetCurrentCurrencyRateAsync(CurrencyType currencyType, CancellationToken cancellationToken)
     {
-        await HealthCheck(cancellationToken);
         var currencyRate = await _cachedCurrencyApi.GetCurrentCurrencyAsync(
             currencyType: currencyType,
             cancellationToken: cancellationToken);
@@ -34,7 +33,6 @@ public class CurrencyRestService : ICurrencyRestService
     
     public async Task<CurrencyDTO> GetCurrencyRateOnDateAsync(CurrencyType currencyType, DateOnly date, CancellationToken cancellationToken)
     {
-        await HealthCheck(cancellationToken);
         var currencyRate = await _cachedCurrencyApi.GetCurrencyOnDateAsync(
             currencyType: currencyType,
             date: date,
@@ -44,20 +42,10 @@ public class CurrencyRestService : ICurrencyRestService
 
     public async Task<CurrencySettings> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        await HealthCheck(cancellationToken);
         var baseCurrencyCode = _apiSettings.CurrentValue.BaseCurrency;
         var convertedBaseCurrCode =
             $"{baseCurrencyCode[0]}{char.ToLower(baseCurrencyCode[1])}{char.ToLower(baseCurrencyCode[2])}";
         var isNewRequestAvailable = await _currencyApi.IsNewRequestsAvailable(cancellationToken);
         return new CurrencySettings(Enum.Parse<CurrencyType>(convertedBaseCurrCode), isNewRequestAvailable);
-    }
-
-    // TODO: сделатьв контроллере вызов хелсчека
-    // TODO: изменить на другое - не проверку количества запросов ( и видимо сделать мидлварку на проверку запросов) 
-    private async Task HealthCheck(CancellationToken cancellationToken)
-    {
-        var apiStatus = await _currencyApi.IsNewRequestsAvailable(cancellationToken);
-        if (!apiStatus)
-            throw new ApiRequestLimitException("Больше запросов нет :(");
     }
 }

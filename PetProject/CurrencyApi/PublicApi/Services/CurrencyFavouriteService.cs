@@ -63,7 +63,6 @@ public class CurrencyFavouriteService : ICurrencyFavouriteService
 
     public async Task UpdateCurrencyFavouriteByNameAsync(string name, CurrencyFavouriteModel newCurFavModel, CancellationToken cancellationToken)
     {
-        // TODO: добавить проверку на null == currencyFavouriteModel
         var currCurrencyFavourite = await _curFavAndSettDbContext.FavouritesCurrenciesRates
             .FirstOrDefaultAsync(c => c.Name == name, cancellationToken);
         if (currCurrencyFavourite == null)

@@ -1,4 +1,5 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Exceptions;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.GrpcContracts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
@@ -43,6 +44,12 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 Value = (double) currencyRate.Value
             };
         }
+        catch (ApiRequestLimitException e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.ResourceExhausted, "Все доступные запросы исчерпаны"),
+                e.Message);
+        }
         catch (Exception e)
         {
             _logger.LogError(e, e.Message);
@@ -68,6 +75,12 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 Value = (double) currencyRate.Value
             };
         }
+        catch (ApiRequestLimitException e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.ResourceExhausted, "Все доступные запросы исчерпаны"),
+                e.Message);
+        }
         catch (Exception e)
         {
             _logger.LogError(e, e.Message);
@@ -83,13 +96,18 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
         var baseCurrencyCode = _apiSettings.CurrentValue.BaseCurrency;
         try
         {
-            var convertedBaseCurrCode =
-                $"{baseCurrencyCode[0]}{char.ToLower(baseCurrencyCode[1])}{char.ToLower(baseCurrencyCode[2])}";
+            var convertedBaseCurrCode = ConvertStringToEnumFormat(baseCurrencyCode);
             return new SettingsResponse
             {
                 BaseCurrencyCode = Enum.Parse<CurrencyCode>(convertedBaseCurrCode),
                 HasAvailableRequests = await _currencyApi.IsNewRequestsAvailable(cancellationToken)
             };
+        }
+        catch (ApiRequestLimitException e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.ResourceExhausted, "Все доступные запросы исчерпаны"),
+                e.Message);
         }
         catch (Exception e)
         {
@@ -114,7 +132,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
             double curValue;
             if (curBase.ToString().ToUpper() == _apiSettings.CurrentValue.BaseCurrency)
             {
-               curValue = (double)currencyRateRelativeCacheBase.Value;
+                curValue = (double)currencyRateRelativeCacheBase.Value;
             }
             else
             {
@@ -123,12 +141,18 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                     cancellationToken: cancellationToken);
                 curValue = (double)(currencyRateRelativeCacheBase.Value / baseCurRateRelativeCacheBase.Value);
             }
-            
+
             return new CurrencyResponse
             {
                 CurrencyCode = (CurrencyCode)currencyRateRelativeCacheBase.CurrencyType,
                 Value = curValue
             };
+        }
+        catch (ApiRequestLimitException e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.ResourceExhausted, "Все доступные запросы исчерпаны"),
+                e.Message);
         }
         catch (Exception e)
         {
@@ -172,6 +196,12 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 Value = curValue
             };
         }
+        catch (ApiRequestLimitException e)
+        {
+            _logger.LogError(e, e.Message);
+            throw new RpcException(new Status(StatusCode.ResourceExhausted, "Все доступные запросы исчерпаны"),
+                e.Message);
+        }
         catch (Exception e)
         {
             _logger.LogError(e, e.Message);
@@ -179,4 +209,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 e.Message);
         }
     }
+    
+    private static string ConvertStringToEnumFormat(string str)
+        => $"{str[0]}{str.ToLower()[1..3]}";
 }

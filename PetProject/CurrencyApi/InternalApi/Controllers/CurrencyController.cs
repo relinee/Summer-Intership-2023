@@ -95,7 +95,5 @@ public class CurrencyController : Controller
     }
 
     [HttpGet("health")]
-    public string IsHealth() => "Healthy!";
-
-    // TODO: сделать тут хелсчек как в презентации
+    public string Check() => "Healthy";
 }

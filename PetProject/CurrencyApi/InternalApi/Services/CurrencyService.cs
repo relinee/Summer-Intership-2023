@@ -21,7 +21,8 @@ public class CurrencyService : ICurrencyAPI
 
     public async Task<Currency[]> GetAllCurrentCurrenciesAsync(string baseCurrency, CancellationToken cancellationToken)
     {
-        // TODO : добавить проверку на количество запросов
+        if (!await IsNewRequestsAvailable(cancellationToken))
+            throw new ApiRequestLimitException("Больше запросов нет :(");
         
         var response = await SendRequestToGetCurrencyRateAsync(baseCurrency, "");
         if (response.IsSuccessStatusCode)
@@ -48,6 +49,9 @@ public class CurrencyService : ICurrencyAPI
 
     public async Task<CurrenciesOnDate> GetAllCurrenciesOnDateAsync(string baseCurrency, DateOnly date, CancellationToken cancellationToken)
     {
+        if (!await IsNewRequestsAvailable(cancellationToken))
+            throw new ApiRequestLimitException("Больше запросов нет :(");
+        
         if (date == new DateOnly(1,1,1))
             throw new Exception("Ошибка преобразования даты");
         var response = await SendRequestToGetHistoricalCurrencyRateAsync(baseCurrency, "", date);
