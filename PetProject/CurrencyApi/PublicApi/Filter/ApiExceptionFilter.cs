@@ -1,4 +1,5 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Exceptions;
+using Grpc.Core;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
@@ -28,6 +29,7 @@ public class ApiExceptionFilter : IExceptionFilter
                 context.Result = result;
                 break;
             }
+            // TODO: отлавливать rpcException
             case CurrencyNotFoundException:
             {
                 var result = new ObjectResult("Попытка выполнения запроса с неизвестной валютой")
@@ -54,6 +56,24 @@ public class ApiExceptionFilter : IExceptionFilter
                 {
                     StatusCode = StatusCodes.Status409Conflict
                 };
+                context.ExceptionHandled = true;
+                context.Result = result;
+                break;
+            }
+            case RpcException rpcException:
+            {
+                _logger.LogError(context.Exception, context.Exception.Message);
+                var result = new ObjectResult("Ошибка внутреннего сервиса")
+                {
+                    StatusCode = StatusCodes.Status500InternalServerError
+                };
+                if (rpcException.StatusCode == StatusCode.ResourceExhausted)
+                {
+                    result = new ObjectResult("Все доступные запросы исчерпаны")
+                    {
+                        StatusCode = StatusCodes.Status429TooManyRequests
+                    };
+                }
                 context.ExceptionHandled = true;
                 context.Result = result;
                 break;

@@ -1,5 +1,4 @@
-﻿using System.Data;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts.Entities;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Exceptions;
@@ -7,7 +6,6 @@ using Fuse8_ByteMinds.SummerSchool.PublicApi.GrpcContracts;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
 using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Enum = System.Enum;
@@ -34,20 +32,15 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
     public async Task<ExchangeRates> GetCurrencyRateAsync(CurrencyType currencyCode, CancellationToken cancellationToken)
     {
         var currRequest = new CurrencyRequest{ CurrencyCode = Enum.Parse<CurrencyCode>(currencyCode.ToString())};
-        try
+        var response = await _grpcCurrencyClient.GetCurrentCurrencyRateAsync(currRequest, cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRates
         {
-            var response = await _grpcCurrencyClient.GetCurrentCurrencyRateAsync(currRequest, cancellationToken: cancellationToken);
-            var currencySettings = GetCurrencySettingsFromDb();
-            var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
-            return new ExchangeRates
-            {
-                ValueCode = response.CurrencyCode.ToString(),
-                CurrentValueRate = (decimal)roundedValue
-            };
-        } catch (RpcException ex) when (ex.StatusCode == StatusCode.ResourceExhausted)
-        {
-            throw new ApiRequestLimitException("Все доступные запросы кончились");
-        }
+            ValueCode = response.CurrencyCode.ToString(),
+            CurrentValueRate = (decimal)roundedValue
+        };
+        
     }
     
     public async Task<ExchangeRatesWithDate> GetHistoricalCurrencyRateAsync(CurrencyType currencyCode, DateOnly date,
@@ -60,42 +53,28 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
             CurrencyCode = Enum.Parse<CurrencyCode>(currencyCode.ToString()),
             Date = Timestamp.FromDateTime(date.ToDateTime(TimeOnly.MaxValue).ToUniversalTime())
         };
-        try
+        var response = await _grpcCurrencyClient.GetCurrencyRateOnDateAsync(currRequest, cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRatesWithDate
         {
-            var response = await _grpcCurrencyClient.GetCurrencyRateOnDateAsync(currRequest, cancellationToken: cancellationToken);
-            var currencySettings = GetCurrencySettingsFromDb();
-            var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
-            return new ExchangeRatesWithDate
-            {
-                Date = date,
-                ValueCode = response.CurrencyCode.ToString(),
-                CurrentValueRate = (decimal)roundedValue
-            };
-        } catch (RpcException ex) when (ex.StatusCode == StatusCode.ResourceExhausted)
-        {
-            throw new ApiRequestLimitException("Все доступные запросы кончились");
-        }
-        
+            Date = date,
+            ValueCode = response.CurrencyCode.ToString(),
+            CurrentValueRate = (decimal)roundedValue
+        };
     }
     
     public async Task<SettingsResult> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        try
+        var response = await _grpcCurrencyClient.GetSettingsAsync(new Empty(), cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        return new SettingsResult
         {
-            var response = await _grpcCurrencyClient.GetSettingsAsync(new Empty(), cancellationToken: cancellationToken);
-            var currencySettings = GetCurrencySettingsFromDb();
-            return new SettingsResult
-            {
-                DefaultCurrency = _apiSettings.CurrentValue.DefaultCurrency,
-                BaseCurrency = response.BaseCurrencyCode.ToString().ToUpper(),
-                NewRequestsAvailable = response.HasAvailableRequests,
-                CurrencyRoundCount = (int)currencySettings.CurrencyRoundCount
-            };
-        }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.ResourceExhausted)
-        {
-            throw new ApiRequestLimitException("Все доступные запросы кончились");
-        }
+            DefaultCurrency = _apiSettings.CurrentValue.DefaultCurrency,
+            BaseCurrency = response.BaseCurrencyCode.ToString().ToUpper(),
+            NewRequestsAvailable = response.HasAvailableRequests,
+            CurrencyRoundCount = (int)currencySettings.CurrencyRoundCount
+        };
     }
     
     public async Task<ExchangeRates> GetCurrencyRateByFavouriteNameAsync(string name, CancellationToken cancellationToken)
@@ -109,23 +88,16 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
             CurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.Currency)),
             BaseCurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.BaseCurrency))
         };
-        try
+        var response = await _grpcCurrencyClient.GetCurrentCurrencyRateRelativeBaseCurrencyAsync(
+            request: currRequest,
+            cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRates
         {
-            var response = await _grpcCurrencyClient.GetCurrentCurrencyRateRelativeBaseCurrencyAsync(
-                request: currRequest,
-                cancellationToken: cancellationToken);
-            var currencySettings = GetCurrencySettingsFromDb();
-            var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
-            return new ExchangeRates
-            {
-                ValueCode = response.CurrencyCode.ToString().ToUpper(),
-                CurrentValueRate = (decimal)roundedValue
-            };
-        }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.ResourceExhausted)
-        {
-            throw new ApiRequestLimitException("Все доступные запросы кончились");
-        }
+            ValueCode = response.CurrencyCode.ToString().ToUpper(),
+            CurrentValueRate = (decimal)roundedValue
+        };
     }
 
     public async Task<ExchangeRatesWithDate> GetCurrencyRateOnDateByFavouriteNameAsync(string name, DateOnly dateOnly, CancellationToken cancellationToken)
@@ -137,31 +109,25 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
             .FirstOrDefaultAsync(c => c.Name == name, cancellationToken: cancellationToken);
         if (currencyFavourite == null)
             throw new CurrencyFavouriteNotFoundException("Избранного с таким именем не найдено");
+        
         var currRequest = new CurrencyRequestWithBaseCurrencyAndDate()
         {
             CurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.Currency)),
             BaseCurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.BaseCurrency)),
             Date = Timestamp.FromDateTime(dateOnly.ToDateTime(TimeOnly.MaxValue).ToUniversalTime())
         };
-        try
+
+        var response = await _grpcCurrencyClient.GetCurrencyRateOnDateRelativeBaseCurrencyAsync(
+            request: currRequest,
+            cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRatesWithDate
         {
-            var response = await _grpcCurrencyClient.GetCurrencyRateOnDateRelativeBaseCurrencyAsync(
-                request: currRequest,
-                cancellationToken: cancellationToken);
-            var currencySettings = GetCurrencySettingsFromDb();
-            var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
-            return new ExchangeRatesWithDate
-            {
-                ValueCode = response.CurrencyCode.ToString().ToUpper(),
-                CurrentValueRate = (decimal)roundedValue,
-                Date = dateOnly
-            };
-        }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.ResourceExhausted)
-        {
-            throw new ApiRequestLimitException("Все доступные запросы кончились");
-        }
-        
+            ValueCode = response.CurrencyCode.ToString().ToUpper(),
+            CurrentValueRate = (decimal)roundedValue,
+            Date = dateOnly
+        };
     }
 
     private CurrencySettings GetCurrencySettingsFromDb()
