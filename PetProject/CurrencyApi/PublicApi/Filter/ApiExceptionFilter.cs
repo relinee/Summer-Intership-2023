@@ -29,7 +29,6 @@ public class ApiExceptionFilter : IExceptionFilter
                 context.Result = result;
                 break;
             }
-            // TODO: отлавливать rpcException
             case CurrencyNotFoundException:
             {
                 var result = new ObjectResult("Попытка выполнения запроса с неизвестной валютой")
