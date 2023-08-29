@@ -1,0 +1,43 @@
+﻿version: '3.8'
+
+services: 
+  postgres:
+    image: postgres:15.3
+    restart: unless-stopped
+    environment:
+      DATABASE_HOST: 127.0.0.1
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: currency_api
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./DockerData/postgres/data:/var/lib/postgresql/data
+        
+  public_api:
+    container_name: currency_public_api
+    image: public_api:dev
+    restart: unless-stopped
+    ports:
+      - "5166:80"
+    environment:
+      - ASPNETCORE_URLS=http://+:80;http://+:5166
+      - ConnectionStrings__currency_api=Host=postgres;Port=5432;Database=currency_api;Username=user;Password=pass
+    build:
+      context: .
+      dockerfile: PublicApi/Dockerfile      
+        
+  internal_api:
+    container_name: currency_internal_api
+    image: internal_api:dev
+    restart: unless-stopped
+    ports:
+      - "5168:81"
+      - "5167:5167"
+    environment:
+      - ASPNETCORE_URLS=http://+:81;http://+:5167;http://+:5168
+      - GrpcPort=5167
+      - ConnectionStrings__currency_api=Host=postgres;Port=5432;Database=currency_api;Username=user;Password=pass
+    build:
+      context: .
+      dockerfile: InternalApi/Dockerfile
