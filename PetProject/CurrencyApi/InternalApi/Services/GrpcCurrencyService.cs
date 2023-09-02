@@ -1,4 +1,5 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Exceptions;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.GrpcContracts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
@@ -14,19 +15,19 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
 {
     private readonly ICachedCurrencyAPI _cachedCurrencyApi;
     private readonly ICurrencyAPI _currencyApi;
-    private readonly IOptionsMonitor<ApiSettings> _apiSettings;
     private readonly ILogger<GrpcCurrencyService> _logger;
+    private readonly CurrencyRateDbContext _currencyRateDbContext;
 
     public GrpcCurrencyService(
         ICachedCurrencyAPI cachedCurrencyApi,
         ICurrencyAPI currencyApi,
-        IOptionsMonitor<ApiSettings> apiSettings,
-        ILogger<GrpcCurrencyService> logger)
+        ILogger<GrpcCurrencyService> logger,
+        CurrencyRateDbContext currencyRateDbContext)
     {
         _cachedCurrencyApi = cachedCurrencyApi;
         _currencyApi = currencyApi;
-        _apiSettings = apiSettings;
         _logger = logger;
+        _currencyRateDbContext = currencyRateDbContext;
     }
     
     public override async Task<CurrencyResponse> GetCurrentCurrencyRate(CurrencyRequest request, ServerCallContext context)
@@ -93,7 +94,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
     {
         var cancelTokenSource = new CancellationTokenSource();
         var cancellationToken = cancelTokenSource.Token;
-        var baseCurrencyCode = _apiSettings.CurrentValue.BaseCurrency;
+        var baseCurrencyCode = GetBaseCurrencyFromDb();
         try
         {
             var convertedBaseCurrCode = ConvertStringToEnumFormat(baseCurrencyCode);
@@ -130,7 +131,8 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 currencyType: cur,
                 cancellationToken: cancellationToken);
             double curValue;
-            if (curBase.ToString().ToUpper() == _apiSettings.CurrentValue.BaseCurrency)
+            var baseCurrency = GetBaseCurrencyFromDb();
+            if (curBase.ToString().ToUpper() == baseCurrency)
             {
                 curValue = (double)currencyRateRelativeCacheBase.Value;
             }
@@ -177,7 +179,8 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 date: DateOnly.FromDateTime(request.Date.ToDateTime()),
                 cancellationToken: cancellationToken);
             double curValue;
-            if (curBase.ToString().ToUpper() == _apiSettings.CurrentValue.BaseCurrency)
+            var baseCurrency = GetBaseCurrencyFromDb();
+            if (curBase.ToString().ToUpper() == baseCurrency)
             {
                 curValue = (double)currencyRateRelativeCacheBase.Value;
             }
@@ -212,4 +215,15 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
     
     private static string ConvertStringToEnumFormat(string str)
         => $"{str[0]}{str.ToLower()[1..3]}";
+    
+    private string GetBaseCurrencyFromDb()
+    {
+        var baseCurrency = _currencyRateDbContext.Settings.FirstOrDefault();
+        if (baseCurrency == null)
+        {
+            throw new CurrencySettingsNotFoundException("Базовой валюты не найдено");
+        }
+
+        return baseCurrency.DefaultCurrency;
+    }
 }

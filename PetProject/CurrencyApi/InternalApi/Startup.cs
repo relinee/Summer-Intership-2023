@@ -2,6 +2,7 @@
 using System.Text.Json.Serialization;
 using Audit.Core;
 using Audit.Http;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.BackgroundWorkers;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Filter;
@@ -40,7 +41,7 @@ public class Startup
 		;
 
 		// Регистрация сервисов
-		services.AddTransient<ICurrencyRestService, CurrencyRestService>();
+		services.AddScoped<ICurrencyRestService, CurrencyRestService>();
 
 		services.AddHttpClient<ICurrencyAPI, CurrencyService>()
 			.AddAuditHandler(audit => audit
@@ -50,11 +51,20 @@ public class Startup
 				.IncludeResponseHeaders()
 				.IncludeContentHeaders());
 		
-		services.AddTransient<ICachedCurrencyAPI, CachedCurrencyService>();
+		services.AddScoped<ICachedCurrencyAPI, CachedCurrencyService>();
+
+		services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
+
+		services.AddHostedService<QueueHostedService>();
+
+		services.AddScoped<IRecalculateCurrencyCache, RecalculateCurrencyCacheService>();
+		
+		services.AddScoped<ICachedCurrencyAPI, CachedCurrencyService>();
 
 		// Регистрация gRPC сервиса
 		services.AddGrpc();
 
+		// Настройка логирования
 		Configuration.Setup()
 			.UseSerilog(
 				config => config.Message(
@@ -98,7 +108,8 @@ public class Startup
 							// Добавление истории миграций
 							sqlOptionsBuilder.MigrationsHistoryTable(HistoryRepository.DefaultTableName, "cur");
 						}
-					).UseSnakeCaseNamingConvention(); // Нейминг в виде снейк кейса
+					).UseAllCheckConstraints()
+					.UseSnakeCaseNamingConvention(); // Нейминг в виде снейк кейса
 			}
 		);
 		

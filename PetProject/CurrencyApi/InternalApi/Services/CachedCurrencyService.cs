@@ -1,8 +1,10 @@
 ﻿using Fuse8_ByteMinds.SummerSchool.InternalApi.Contracts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.DbContexts.Entities;
+using Fuse8_ByteMinds.SummerSchool.InternalApi.Exceptions;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.InternalApi.Models.Response;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Fuse8_ByteMinds.SummerSchool.InternalApi.Services;
@@ -12,29 +14,28 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     
     private readonly ICurrencyAPI _currencyApi;
     private readonly IOptionsMonitor<CurrencyCacheSettings> _cacheSettings;
-    private readonly IOptionsMonitor<ApiSettings> _apiSettings;
     private readonly CurrencyRateDbContext _currencyRateDbContext;
 
     public CachedCurrencyService(
         ICurrencyAPI currencyApi,
         IOptionsMonitor<CurrencyCacheSettings> cacheSettings,
-        IOptionsMonitor<ApiSettings> apiSettings,
         CurrencyRateDbContext currencyRateDbContext)
     {
         _currencyApi = currencyApi;
         _cacheSettings = cacheSettings;
-        _apiSettings = apiSettings;
         _currencyRateDbContext = currencyRateDbContext;
     }
     
     public async Task<CurrencyDTO> GetCurrentCurrencyAsync(CurrencyType currencyType, CancellationToken cancellationToken)
     {
-        var cachedCurrencies = GetDataFromDbWithoutExpirationTime(
+        var cachedCurrencies = await GetDataFromDbWithoutExpirationTime(
             dateTime: DateTimeOffset.UtcNow,
-            expirationTimeInHours: _cacheSettings.CurrentValue.ExpirationTimeInHours);
+            expirationTimeInHours: _cacheSettings.CurrentValue.ExpirationTimeInHours,
+            cancellationToken);
         if (cachedCurrencies != null) return GetCurrentCurrencyDto(cachedCurrencies, currencyType);
         
-        var currentCurrencies = await _currencyApi.GetAllCurrentCurrenciesAsync(_apiSettings.CurrentValue.BaseCurrency, cancellationToken);
+        var baseCurrency = GetBaseCurrencyFromDb();
+        var currentCurrencies = await _currencyApi.GetAllCurrentCurrenciesAsync(baseCurrency, cancellationToken);
         
         CacheCurrenciesOnDateAsync(
             currencies: currentCurrencies,
@@ -45,10 +46,11 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     
     public async Task<CurrencyDTO> GetCurrencyOnDateAsync(CurrencyType currencyType, DateOnly date, CancellationToken cancellationToken)
     {
-        var cachedCurrencies = GetDataFromDb(date.ToDateTime(TimeOnly.MaxValue));
+        var cachedCurrencies = await GetDataFromDb(date.ToDateTime(TimeOnly.MaxValue), cancellationToken);
         if (cachedCurrencies != null) return GetCurrentCurrencyDto(cachedCurrencies, currencyType);
         
-        var currenciesRateOnDate = await _currencyApi.GetAllCurrenciesOnDateAsync(_apiSettings.CurrentValue.BaseCurrency, date, cancellationToken);
+        var baseCurrency = GetBaseCurrencyFromDb();
+        var currenciesRateOnDate = await _currencyApi.GetAllCurrenciesOnDateAsync(baseCurrency, date, cancellationToken);
         
         CacheCurrenciesOnDateAsync(
             currencies: currenciesRateOnDate.Currencies,
@@ -74,33 +76,53 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     /// </summary>
     /// <param name="dateTime">Дата, на которую нужен курс валют</param>
     /// <param name="expirationTimeInHours">Срок актуальности кеша в часах</param>
+    /// <param name="cancellationToken">Токен отмены</param>
     /// <returns>Если срок давности не вышел и данные в базе данных есть, то массив курсов валют. Иначе null</returns>
-    private Currency[]? GetDataFromDbWithoutExpirationTime(DateTimeOffset dateTime, double expirationTimeInHours)
+    private async Task<Currency[]?> GetDataFromDbWithoutExpirationTime(
+        DateTimeOffset dateTime, double expirationTimeInHours, CancellationToken cancellationToken)
     {
-        var currenciesRates = _currencyRateDbContext.Currencies
-            .Where(c => c.BaseCurrency == _apiSettings.CurrentValue.BaseCurrency)
+        var baseCurrency = GetBaseCurrencyFromDb();
+        var currenciesRates = await _currencyRateDbContext.Currencies
+            .Where(c => c.BaseCurrency == baseCurrency)
             .OrderByDescending(c => c.DateTime)
-            .FirstOrDefault();
-        if (currenciesRates == null) return null;
-        
-        var timeDiff = dateTime - currenciesRates.DateTime;
-        return timeDiff.TotalHours < expirationTimeInHours
-            ? Array.ConvertAll(currenciesRates.Currencies, ConvertCurrencyRateToCurrency) : null;
+            .FirstOrDefaultAsync(cancellationToken);
+        if (currenciesRates != null)
+        {
+            var timeDiff = dateTime - currenciesRates.DateTime;
+            if (timeDiff.TotalHours < expirationTimeInHours)
+                return Array.ConvertAll(currenciesRates.Currencies, ConvertCurrencyRateToCurrency);
+        }
+        var tasksInProgress = await GetFromDbTasksInProgress(cancellationToken);
+        if (tasksInProgress.Length > 0)
+            await Task.Delay(10_000, cancellationToken);
+        var tasksInProgressAfterDelay = await GetFromDbTasksInProgress(cancellationToken);
+        if (tasksInProgressAfterDelay.Length > 0)
+            throw new Exception("Очередь задач не движется!");
+        return null;
     }
 
+    private async Task<Array> GetFromDbTasksInProgress(CancellationToken cancellationToken)
+        => await _currencyRateDbContext.CacheTasks
+            .Where(p =>
+                p.Status == CacheTaskStatus.Created ||
+                p.Status == CacheTaskStatus.InProgress)
+            .ToArrayAsync(cancellationToken);
+    
     /// <summary>
     /// Получение из базы данных курсов валют на дату
     /// </summary>
     /// <param name="dateTime">Дата, на которую нужно получить курсы валют</param>
+    /// <param name="cancellationToken">Токен отмены</param>
     /// <returns>Если данные в базе данных есть, то массив курсов валют. Иначе null</returns>
-    private Currency[]? GetDataFromDb(DateTimeOffset dateTime)
+    private async Task<Currency[]?> GetDataFromDb(DateTimeOffset dateTime, CancellationToken cancellationToken)
     {
-        var currenciesRates = _currencyRateDbContext.Currencies
+        var baseCurrency = GetBaseCurrencyFromDb();
+        var currenciesRates = await _currencyRateDbContext.Currencies
             .Where(c =>
-                c.BaseCurrency == _apiSettings.CurrentValue.BaseCurrency &&
+                c.BaseCurrency == baseCurrency &&
                 DateOnly.FromDateTime(c.DateTime.Date) == DateOnly.FromDateTime(dateTime.Date))
             .OrderByDescending(c => c.DateTime)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync(cancellationToken);
         return currenciesRates == null ? null : Array.ConvertAll(currenciesRates.Currencies, ConvertCurrencyRateToCurrency);
     }
 
@@ -111,9 +133,10 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     /// <param name="date">Дата актуальности курсов</param>
     private void CacheCurrenciesOnDateAsync(Currency[] currencies, DateTimeOffset date)
     {
+        var baseCurrency = GetBaseCurrencyFromDb();
         var currenciesRates = new CurrenciesRates
         {
-            BaseCurrency = _apiSettings.CurrentValue.BaseCurrency,
+            BaseCurrency = baseCurrency,
             Currencies = Array.ConvertAll(currencies, ConvertCurrencyToCurrencyRate),
             DateTime = date
         };
@@ -126,4 +149,15 @@ internal class CachedCurrencyService : ICachedCurrencyAPI
     
     private static CurrencyRate ConvertCurrencyToCurrencyRate(Currency currency) 
         => new() {Code = currency.Code, Value = currency.Value};
+
+    private string GetBaseCurrencyFromDb()
+    {
+        var baseCurrency = _currencyRateDbContext.Settings.FirstOrDefault();
+        if (baseCurrency == null)
+        {
+            throw new CurrencySettingsNotFoundException("Базовой валюты не найдено");
+        }
+
+        return baseCurrency.DefaultCurrency;
+    }
 }

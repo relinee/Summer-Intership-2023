@@ -27,4 +27,11 @@ public interface ICurrencyRestService
     /// </summary>
     /// <returns>Текущие настройки</returns>
     public Task<CurrencySettings> GetSettingsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Создать задачу для пересчета кеша на новую базовую валюту
+    /// </summary>
+    /// <param name="newBaseCurrency">Новая базовая валюта</param>
+    /// <returns>Guid созданной задачи</returns>
+    public Task<Guid> CreateTaskToRecalculateCacheToNewBaseCurrencyAsync(CurrencyType newBaseCurrency, CancellationToken cancellationToken);
 }

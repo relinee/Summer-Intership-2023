@@ -12,5 +12,6 @@ public class CurrenciesRatesConfiguration : IEntityTypeConfiguration<CurrenciesR
         builder.Property(p => p.Currencies)
             .HasColumnType("jsonb");
         builder.HasIndex(p => new { p.BaseCurrency, p.DateTime });
+        
     }
 }

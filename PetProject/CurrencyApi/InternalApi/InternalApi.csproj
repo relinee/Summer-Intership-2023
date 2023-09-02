@@ -13,6 +13,7 @@
     <ItemGroup>
         <PackageReference Include="Audit.HttpClient" Version="21.0.3" />
         <PackageReference Include="Audit.NET.Serilog" Version="21.0.3" />
+        <PackageReference Include="EFCore.CheckConstraints" Version="7.0.2" />
         <PackageReference Include="EFCore.NamingConventions" Version="7.0.2" />
         <PackageReference Include="Grpc.AspNetCore" Version="2.56.0-pre1" />
         <PackageReference Include="Grpc.Tools" Version="2.57.0">
@@ -39,5 +40,6 @@
         <Link>.dockerignore</Link>
       </Content>
     </ItemGroup>
+
 
 </Project>

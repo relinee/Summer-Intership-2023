@@ -94,6 +94,35 @@ public class CurrencyController : Controller
         return await _currencyRestService.GetSettingsAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Проверка работоспособности сервиса
+    /// </summary>
+    /// <response code="200">
+    /// Возвращает если сервис работает
+    /// </response>
+    /// <response code="500">
+    /// Возвращает если произошла ошибка на сервере
+    /// </response>
     [HttpGet("health")]
     public string Check() => "Healthy";
+
+
+    /// <summary>
+    /// Создать задачу для пересчета курсов на новую базовую валюту
+    /// </summary>
+    /// <param name="newBaseCurrency">Новая базовая валюта</param>
+    /// <response code="202">
+    /// Возвращает вместе с Guid задачи, если ее удалось создать
+    /// </response>
+    /// <response code="500">
+    /// Возвращает если произошла ошибка на сервере
+    /// </response>
+    [HttpPost]
+    [Route("cache/recalculate/")]
+    public async Task<IActionResult> RecalculateCache([FromBody]CurrencyType newBaseCurrency)
+    {
+        var cancellationToken = _cancellationTokenSource.Token;
+        var guid = await _currencyRestService.CreateTaskToRecalculateCacheToNewBaseCurrencyAsync(newBaseCurrency, cancellationToken);
+        return Accepted(guid);
+    }
 }

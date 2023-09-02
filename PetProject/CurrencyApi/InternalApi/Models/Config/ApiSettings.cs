@@ -11,11 +11,6 @@ public record ApiSettings
     public string ApiKey { get; init; }
     
     /// <summary>
-    /// Базовая валюта относительно которой должны считать курс
-    /// </summary>
-    public string BaseCurrency { get; init; }
-    
-    /// <summary>
     /// Дефолтная валюта курс которой нужно считать
     /// </summary>
     public string DefaultCurrency { get; init; }
