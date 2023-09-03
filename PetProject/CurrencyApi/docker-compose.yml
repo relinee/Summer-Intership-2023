@@ -6,46 +6,48 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_HOST: 127.0.0.1
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: currency_api
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB_NAME}
     ports:
       - "5433:5432"
     volumes:
-      - ./DockerData/postgres/data:/var/lib/postgresql/data
+      - ${HOST_LOGS_BASE}/postgres/data:/var/lib/postgresql/data
         
   public_api:
-    container_name: currency_public_api
+    container_name: ${PUBLIC_API_CONTAINER_NAME}
     image: public_api:dev
     restart: unless-stopped
     ports:
-      - "5166:80"
+      - "5166:${PUBLIC_API_CONTAINER_PORT}"
+    volumes:
+      - ${HOST_LOGS_BASE}/public_api/logs:/usr/logs
     environment:
+      - CurrencyGrpcServerAddress=http://${INTERNAL_API_CONTAINER_NAME}:${INTERNAL_API_CONTAINER_GRPC_PORT}
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:80;http://+:5166
-      - ConnectionStrings__currency_api=Host=postgres;Port=5432;Database=currency_api;Username=user;Password=pass
+      - ASPNETCORE_URLS=http://+:${PUBLIC_API_CONTAINER_PORT};http://+:5166
+      - ConnectionStrings__currency_api=${API_DB_CONNECTION_STRING}
     build:
       context: .
       dockerfile: PublicApi/Dockerfile
-    healthcheck:
-      test: curl --fail http://localhost:81/health || exit 1
-      interval: 10s
     depends_on:
       - postgres
       - internal_api
   
   internal_api:
-    container_name: currency_internal_api
+    container_name: ${INTERNAL_API_CONTAINER_NAME}
     image: internal_api:dev
     restart: unless-stopped
     ports:
-      - "5168:81"
-      - "5167:5167"
+      - "5168:${INTERNAL_API_CONTAINER_PORT}"
+      - "5167:${INTERNAL_API_CONTAINER_GRPC_PORT}"
+    volumes:
+      - ${HOST_LOGS_BASE}/public_api/logs:/usr/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:81;http://+:5167;http://+:5168
-      - GrpcPort=5167
-      - ConnectionStrings__currency_api=Host=postgres;Port=5432;Database=currency_api;Username=user;Password=pass
+      - ASPNETCORE_URLS=http://+:${INTERNAL_API_CONTAINER_PORT};http://+:${INTERNAL_API_CONTAINER_GRPC_PORT};http://+:5168
+      - GrpcPort=${INTERNAL_API_CONTAINER_GRPC_PORT}
+      - ConnectionStrings__currency_api=${API_DB_CONNECTION_STRING}
     build:
       context: .
       dockerfile: InternalApi/Dockerfile

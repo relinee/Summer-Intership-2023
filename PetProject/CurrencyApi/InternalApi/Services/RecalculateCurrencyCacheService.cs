@@ -46,19 +46,13 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
                 _logger.LogError("Старая базовая валюта не найдена");
                 return;
             }
-            
-            var oldBaseCur = currencySettings.DefaultCurrency;
-            if (oldBaseCur == newBaseCur)
-            {
-                task.Status = CacheTaskStatus.CompletedSuccessfully;
-                await _currencyRateDbContext.SaveChangesAsync(cancellationToken);
-                return;
-            }
+            currencySettings.DefaultCurrency = newBaseCur;
             
             var cacheData = await _currencyRateDbContext.Currencies
-                .Where(p => p.BaseCurrency == oldBaseCur)
+                .Where(p => p.BaseCurrency != newBaseCur)
                 .GroupBy(p => p.DateTime)
                 .ToListAsync(cancellationToken);
+            var dateSet = new HashSet<DateTimeOffset>();
             foreach (var data in cacheData)
             {
                 foreach (var currRates in data)
@@ -74,10 +68,14 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
                         DateTime = currRates.DateTime,
                         Currencies = newCurr
                     };
+                    // TODO : тут доделать
+                    var isExist = _currencyRateDbContext.Currencies
+                        .Any(p => p.BaseCurrency == newBaseCur && p.DateTime == currRates.DateTime);
+                    if (isExist || dateSet.Contains(currRates.DateTime)) continue;
                     await _currencyRateDbContext.Currencies.AddAsync(newData, cancellationToken);
+                    dateSet.Add(currRates.DateTime);
                 }
             }
-            currencySettings.DefaultCurrency = newBaseCur;
             task.Status = CacheTaskStatus.CompletedSuccessfully;
             await _currencyRateDbContext.SaveChangesAsync(cancellationToken);
         }

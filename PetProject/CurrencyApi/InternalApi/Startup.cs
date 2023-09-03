@@ -64,6 +64,9 @@ public class Startup
 		// Регистрация gRPC сервиса
 		services.AddGrpc();
 
+		// services.AddHealthChecks()
+		// 	.AddNpgSql(_configuration.GetConnectionString("currency_api"));
+		
 		// Настройка логирования
 		Configuration.Setup()
 			.UseSerilog(
@@ -136,7 +139,7 @@ public class Startup
 			app.UseSwagger();
 			app.UseSwaggerUI();
 		}
-
+		
 		// Настройка роутинга и эндпоинтов для gRPC сервиса
 		app.UseWhen(
 			predicate: context => context.Connection.LocalPort == _configuration.GetValue<int>("GrpcPort"),
