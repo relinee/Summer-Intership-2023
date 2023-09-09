@@ -55,9 +55,9 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
             var dateSet = new HashSet<DateTimeOffset>();
             foreach (var data in cacheData)
             {
+                var oldToNewCur = data.First().Currencies.First(p => p.Code == newBaseCur);
                 foreach (var currRates in data)
                 {
-                    var oldToNewCur = currRates.Currencies.First(p => p.Code == newBaseCur);
                     var newCurr = currRates.Currencies
                         .Select(
                             i => new CurrencyRate{Code = i.Code, Value = i.Value / oldToNewCur.Value} )
@@ -68,7 +68,6 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
                         DateTime = currRates.DateTime,
                         Currencies = newCurr
                     };
-                    // TODO : тут доделать
                     var isExist = _currencyRateDbContext.Currencies
                         .Any(p => p.BaseCurrency == newBaseCur && p.DateTime == currRates.DateTime);
                     if (isExist || dateSet.Contains(currRates.DateTime)) continue;
@@ -81,8 +80,9 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
         }
         catch (Exception e)
         {
-            _logger.LogError("Произошла ошибка во время обработки {taskId} ", taskId);
+            _logger.LogError(e,"Произошла ошибка во время обработки {taskId} ", taskId);
             task.Status = CacheTaskStatus.CompletedWithError;
+            await _currencyRateDbContext.SaveChangesAsync(cancellationToken);
         }
     }
 }

@@ -1,5 +1,4 @@
-﻿using System.Data;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts.Entities;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Exceptions;
@@ -100,9 +99,9 @@ public class CurrencyFavouriteService : ICurrencyFavouriteService
     private static CurrencyFavouriteModel ConvertFavToFavModel(CurrencyFavourite currencyFavourite)
     {
         var currency = Enum.Parse<CurrencyType>(
-            $"{currencyFavourite.Currency[0]}{currencyFavourite.Currency.ToLower()[1]}{currencyFavourite.Currency.ToLower()[2]}");
+            currencyFavourite.Currency, ignoreCase: true);
         var baseCurrency = Enum.Parse<CurrencyType>(
-            $"{currencyFavourite.BaseCurrency[0]}{currencyFavourite.BaseCurrency.ToLower()[1]}{currencyFavourite.BaseCurrency.ToLower()[2]}");
+            currencyFavourite.BaseCurrency, ignoreCase: true);
         return new CurrencyFavouriteModel(currencyFavourite.Name, currency, baseCurrency);
     }
 
@@ -114,13 +113,9 @@ public class CurrencyFavouriteService : ICurrencyFavouriteService
     }
     
     private bool IsAlreadyCurAndCurBaseInDb(string currency, string currencyBase)
-    {
-        // TODO: переделать запросы под экстеншены
-        var currCurrencyFavourite = _curFavAndSettDbContext.FavouritesCurrenciesRates
-            .FirstOrDefault(c =>
-                c.Currency == currency && c.BaseCurrency == currencyBase);
-        return currCurrencyFavourite != null;
-    }
+        => _curFavAndSettDbContext.FavouritesCurrenciesRates
+            .Any(c => c.Currency == currency && c.BaseCurrency == currencyBase);
+    
 
     private string? GetNameByCurAndCurBaseAsync(string currency, string currencyBase)
     {

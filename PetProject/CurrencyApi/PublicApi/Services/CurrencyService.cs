@@ -85,8 +85,8 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
             throw new CurrencyFavouriteNotFoundException("Избранного с таким именем не найдено");
         var currRequest = new CurrencyRequestWithBaseCurrency
         {
-            CurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.Currency)),
-            BaseCurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.BaseCurrency))
+            CurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.Currency, ignoreCase: true),
+            BaseCurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.BaseCurrency, ignoreCase: true)
         };
         var response = await _grpcCurrencyClient.GetCurrentCurrencyRateRelativeBaseCurrencyAsync(
             request: currRequest,
@@ -112,8 +112,8 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
         
         var currRequest = new CurrencyRequestWithBaseCurrencyAndDate()
         {
-            CurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.Currency)),
-            BaseCurrencyCode = Enum.Parse<CurrencyCode>(ConvertStringToEnumFormat(currencyFavourite.BaseCurrency)),
+            CurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.Currency, ignoreCase: true),
+            BaseCurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.BaseCurrency, ignoreCase: true),
             Date = Timestamp.FromDateTime(dateOnly.ToDateTime(TimeOnly.MaxValue).ToUniversalTime())
         };
 
@@ -144,7 +144,4 @@ public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
         if (!response.HasAvailableRequests)
             throw new ApiRequestLimitException("Больше запросов нет :(");
     }
-
-    private static string ConvertStringToEnumFormat(string str)
-        => $"{str[0]}{str.ToLower()[1..3]}";
 }

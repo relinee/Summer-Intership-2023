@@ -25,7 +25,7 @@ services:
     environment:
       - CurrencyGrpcServerAddress=http://${INTERNAL_API_CONTAINER_NAME}:${INTERNAL_API_CONTAINER_GRPC_PORT}
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:${PUBLIC_API_CONTAINER_PORT};http://+:5166
+      - ASPNETCORE_URLS=http://+:${PUBLIC_API_CONTAINER_PORT}
       - ConnectionStrings__currency_api=${API_DB_CONNECTION_STRING}
     build:
       context: .
@@ -45,7 +45,7 @@ services:
       - ${HOST_LOGS_BASE}/public_api/logs:/usr/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:${INTERNAL_API_CONTAINER_PORT};http://+:${INTERNAL_API_CONTAINER_GRPC_PORT};http://+:5168
+      - ASPNETCORE_URLS=http://+:${INTERNAL_API_CONTAINER_PORT};http://+:${INTERNAL_API_CONTAINER_GRPC_PORT}
       - GrpcPort=${INTERNAL_API_CONTAINER_GRPC_PORT}
       - ConnectionStrings__currency_api=${API_DB_CONNECTION_STRING}
     build:

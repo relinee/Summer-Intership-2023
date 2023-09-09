@@ -32,8 +32,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
     
     public override async Task<CurrencyResponse> GetCurrentCurrencyRate(CurrencyRequest request, ServerCallContext context)
     {
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
+        var cancellationToken = context.CancellationToken;
         try
         {
             var currencyRate = await _cachedCurrencyApi.GetCurrentCurrencyAsync(
@@ -62,8 +61,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
     public override async Task<CurrencyResponse> GetCurrencyRateOnDate(CurrencyRequestWithDate request, ServerCallContext context)
     {
         // 10.08.2023 в секундах = 1691625600
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
+        var cancellationToken = context.CancellationToken;
         try
         {
             var currencyRate = await _cachedCurrencyApi.GetCurrencyOnDateAsync(
@@ -92,15 +90,13 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
 
     public override async Task<SettingsResponse> GetSettings(Empty request, ServerCallContext context)
     {
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
+        var cancellationToken = context.CancellationToken;
         var baseCurrencyCode = GetBaseCurrencyFromDb();
         try
         {
-            var convertedBaseCurrCode = ConvertStringToEnumFormat(baseCurrencyCode);
             return new SettingsResponse
             {
-                BaseCurrencyCode = Enum.Parse<CurrencyCode>(convertedBaseCurrCode),
+                BaseCurrencyCode = Enum.Parse<CurrencyCode>(baseCurrencyCode, ignoreCase: true),
                 HasAvailableRequests = await _currencyApi.IsNewRequestsAvailable(cancellationToken)
             };
         }
@@ -121,8 +117,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
 
     public override async Task<CurrencyResponse> GetCurrentCurrencyRateRelativeBaseCurrency(CurrencyRequestWithBaseCurrency request, ServerCallContext context)
     {
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
+        var cancellationToken = context.CancellationToken;
         try
         {
             var cur = Enum.Parse<CurrencyType>(request.CurrencyCode.ToString());
@@ -168,8 +163,7 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
         ServerCallContext context)
     {
         // 10.08.2023 в секундах = 1691625600
-        var cancelTokenSource = new CancellationTokenSource();
-        var cancellationToken = cancelTokenSource.Token;
+        var cancellationToken = context.CancellationToken;
         try
         {
             var cur = Enum.Parse<CurrencyType>(request.CurrencyCode.ToString());
@@ -212,9 +206,6 @@ public class GrpcCurrencyService : GrpcCurrency.GrpcCurrencyBase
                 e.Message);
         }
     }
-    
-    private static string ConvertStringToEnumFormat(string str)
-        => $"{str[0]}{str.ToLower()[1..3]}";
     
     private string GetBaseCurrencyFromDb()
     {

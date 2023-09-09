@@ -48,10 +48,8 @@ public class CurrencyRestService : ICurrencyRestService
     public async Task<CurrencySettings> GetSettingsAsync(CancellationToken cancellationToken)
     {
         var baseCurrencyCode = GetBaseCurrencyFromDb();
-        var convertedBaseCurrCode =
-            $"{baseCurrencyCode[0]}{char.ToLower(baseCurrencyCode[1])}{char.ToLower(baseCurrencyCode[2])}";
         var isNewRequestAvailable = await _currencyApi.IsNewRequestsAvailable(cancellationToken);
-        return new CurrencySettings(Enum.Parse<CurrencyType>(convertedBaseCurrCode), isNewRequestAvailable);
+        return new CurrencySettings(Enum.Parse<CurrencyType>(baseCurrencyCode, ignoreCase: true), isNewRequestAvailable);
     }
 
     public async Task<Guid> CreateTaskToRecalculateCacheToNewBaseCurrencyAsync(CurrencyType newBaseCurrency,
