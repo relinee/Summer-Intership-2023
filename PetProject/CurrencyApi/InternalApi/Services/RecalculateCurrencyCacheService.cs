@@ -46,10 +46,12 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
                 _logger.LogError("Старая базовая валюта не найдена");
                 return;
             }
+
+            var oldDefaultCur = currencySettings.DefaultCurrency;
             currencySettings.DefaultCurrency = newBaseCur;
             
             var cacheData = await _currencyRateDbContext.Currencies
-                .Where(p => p.BaseCurrency != newBaseCur)
+                .Where(p => p.BaseCurrency == oldDefaultCur)
                 .GroupBy(p => p.DateTime)
                 .ToListAsync(cancellationToken);
             var dateSet = new HashSet<DateTimeOffset>();
@@ -80,7 +82,7 @@ public class RecalculateCurrencyCacheService : IRecalculateCurrencyCache
         }
         catch (Exception e)
         {
-            _logger.LogError(e,"Произошла ошибка во время обработки {taskId} ", taskId);
+            _logger.LogError(e, "Произошла ошибка во время обработки {taskId} ", taskId);
             task.Status = CacheTaskStatus.CompletedWithError;
             await _currencyRateDbContext.SaveChangesAsync(cancellationToken);
         }
