@@ -2,17 +2,21 @@
 using System.Text.Json.Serialization;
 using Audit.Core;
 using Audit.Http;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Handlers;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Middleware;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Filter;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.GrpcContracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Middlewares;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
 using Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
-using Microsoft.AspNetCore.HttpLogging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.OpenApi.Models;
 
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi;
 
-public class Startup
+public class  Startup
 {
 	private readonly IConfiguration _configuration;
 
@@ -42,7 +46,16 @@ public class Startup
 		// 	logger.LoggingFields = HttpLoggingFields.RequestPath;
 		// });
 
-		services.AddHttpClient<ICurrencyService, CurrencyService>()
+		// Регистрация сервисов
+		services.AddScoped<ICurrencyService, CurrencyService>();
+		services.AddScoped<ICurrencyFavouriteService, CurrencyFavouriteService>();
+		services.AddScoped<ICurrencyServiceByFavouriteName, CurrencyService>();
+
+		// Регистрация gRPC клиента
+		services.AddGrpcClient<GrpcCurrency.GrpcCurrencyClient>(o =>
+			{
+				o.Address = new Uri(_configuration["CurrencyGrpcServerAddress"]);
+			})
 			.AddAuditHandler(audit => audit
 				.IncludeRequestBody()
 				.IncludeRequestHeaders()
@@ -65,7 +78,27 @@ public class Startup
 						}
 						return auditEvent.ToJson();
 					}));
+		
+		// Регистрация DbContext
+		services.AddDbContext<CurrencyFavouritesAndSettingsDbContext>(
+			optionsBuilder =>
+			{
+				optionsBuilder
+					.UseNpgsql(
+						connectionString: _configuration.GetConnectionString("currency_api"),
+						npgsqlOptionsAction: sqlOptionsBuilder =>
+						{
+							// Переподключение при ошибке
+							sqlOptionsBuilder.EnableRetryOnFailure();
+							// Добавление истории миграций
+							sqlOptionsBuilder.MigrationsHistoryTable(HistoryRepository.DefaultTableName, "user");
+						}
+					).UseAllCheckConstraints() // Проверка ограничений таблицы
+					.UseSnakeCaseNamingConvention(); // Нейминг в виде снейк кейса
+			}
+		);
 
+		// Добавление фильтра ошибок
 		services.AddControllers(options =>
 		{
 			options.Filters.Add(typeof(ApiExceptionFilter));
@@ -81,8 +114,8 @@ public class Startup
 			options.SwaggerDoc("v1", new OpenApiInfo
 			{
 				Version = "v1",
-				Title = "Currency API",
-				Description = "Пример ASP .NET Core Web API"
+				Title = "Currency Public API",
+				Description = "Внешний сервис по работе с курсами валют"
 			});
 			var basePath = AppContext.BaseDirectory;
 			var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -100,7 +133,6 @@ public class Startup
 		}
 		
 		app.UseMiddleware<IncomingRequestsLoggingMiddleware>();
-		app.UseMiddleware<ApiRateLimitMiddleware>();
 		app.UseRouting()
 			.UseEndpoints(endpoints => endpoints.MapControllers());
 	}

@@ -1,126 +1,147 @@
-﻿using System.Net;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Controllers;
-using Fuse8_ByteMinds.SummerSchool.PublicApi.Models;
+﻿using Fuse8_ByteMinds.SummerSchool.PublicApi.Contracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.DbContexts.Entities;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Exceptions;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.GrpcContracts;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Config;
+using Fuse8_ByteMinds.SummerSchool.PublicApi.Models.Response;
+using Google.Protobuf.WellKnownTypes;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Enum = System.Enum;
 
 namespace Fuse8_ByteMinds.SummerSchool.PublicApi.Services;
 
-public class CurrencyService : ICurrencyService
+public class CurrencyService : ICurrencyService, ICurrencyServiceByFavouriteName
 {
-    private readonly HttpClient _httpClient;
-    private readonly IOptionsMonitor<ApiSettings> _apiSettingsAsOptionsMonitor;
+    private readonly GrpcCurrency.GrpcCurrencyClient _grpcCurrencyClient;
+    private readonly IOptionsMonitor<ApiSettings> _apiSettings;
+    private readonly CurrencyFavouritesAndSettingsDbContext _curFavAndSettDbContext;
 
-    public CurrencyService(HttpClient httpClient, IOptionsMonitor<ApiSettings> apiSettingsAsOptionsMonitor)
+    public CurrencyService(
+        GrpcCurrency.GrpcCurrencyClient grpcCurrencyClient,
+        IOptionsMonitor<ApiSettings> apiSettings,
+        CurrencyFavouritesAndSettingsDbContext curFavAndSettDbContext
+        )
     {
-        _httpClient = httpClient;
-        _apiSettingsAsOptionsMonitor = apiSettingsAsOptionsMonitor;
+        _grpcCurrencyClient = grpcCurrencyClient;
+        _apiSettings = apiSettings;
+        _curFavAndSettDbContext = curFavAndSettDbContext;
     }
 
-    public async Task<LatestExchangeRates> GetCurrencyRateAsync(string currencyCode)
+    public async Task<ExchangeRates> GetCurrencyRateAsync(CurrencyType currencyCode, CancellationToken cancellationToken)
     {
-        var response = await SendRequestToGetCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode);
-        if (response.IsSuccessStatusCode)
+        var currRequest = new CurrencyRequest{ CurrencyCode = Enum.Parse<CurrencyCode>(currencyCode.ToString())};
+        var response = await _grpcCurrencyClient.GetCurrentCurrencyRateAsync(currRequest, cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRates
         {
-            var latestCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (latestCurrencyExchangeData?.Data == null || latestCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(latestCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
-            return new LatestExchangeRates
-            {
-                ValueCode = latestCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
-        {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
+            ValueCode = response.CurrencyCode.ToString(),
+            CurrentValueRate = (decimal)roundedValue
+        };
+        
     }
     
-    public async Task<HistoricalExchangeRates> GetHistoricalCurrencyRateAsync(string currencyCode, DateOnly date)
+    public async Task<ExchangeRatesWithDate> GetHistoricalCurrencyRateAsync(CurrencyType currencyCode, DateOnly date,
+        CancellationToken cancellationToken)
     {
         if (date == new DateOnly(1,1,1))
             throw new Exception("Ошибка преобразования даты");
-        var response = await SendRequestToGetHistoricalCurrencyRateAsync(_apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency, currencyCode, date);
-        if (response.IsSuccessStatusCode)
+        var currRequest = new CurrencyRequestWithDate
         {
-            var historicalCurrencyExchangeData = await response.Content.ReadFromJsonAsync<CurrencyExchangeData>();
-            if (historicalCurrencyExchangeData?.Data == null || historicalCurrencyExchangeData.Meta == null)
-                throw new Exception("Ошибка преобразования данных");
-            var roundedValue = Math.Round(historicalCurrencyExchangeData.Data[currencyCode].Value, _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces);
-            return new HistoricalExchangeRates
-            {
-                Date = date,
-                ValueCode = historicalCurrencyExchangeData.Data[currencyCode].Code,
-                CurrentValueRate = roundedValue
-                
-            };
-        }
-
-        if (response.StatusCode == HttpStatusCode.UnprocessableEntity)
+            CurrencyCode = Enum.Parse<CurrencyCode>(currencyCode.ToString()),
+            Date = Timestamp.FromDateTime(date.ToDateTime(TimeOnly.MaxValue).ToUniversalTime())
+        };
+        var response = await _grpcCurrencyClient.GetCurrencyRateOnDateAsync(currRequest, cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRatesWithDate
         {
-            var content = await response.Content.ReadFromJsonAsync<ErrorApiResponse>();
-            if (content != null && content.Errors.Currencies.Contains("The selected currencies is invalid."))
-                throw new CurrencyNotFoundException("Неизвестная валюта");
-        }
-        throw new Exception("Ошибка выполнения запроса");
+            Date = date,
+            ValueCode = response.CurrencyCode.ToString(),
+            CurrentValueRate = (decimal)roundedValue
+        };
     }
     
-    public async Task<SettingsResult> GetSettingsAsync()
+    public async Task<SettingsResult> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        var response = await SendRequestToGetStatusAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("Ошибка получения информации от сервера!");
-        var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiStatus == null)
-            throw new Exception("Ошибка преобразования данных");
+        var response = await _grpcCurrencyClient.GetSettingsAsync(new Empty(), cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
         return new SettingsResult
         {
-            DefaultCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.DefaultCurrency,
-            BaseCurrency = _apiSettingsAsOptionsMonitor.CurrentValue.BaseCurrency,
-            RequestLimit = apiStatus.Quotas.Month.Total,
-            RequestCount = apiStatus.Quotas.Month.Used,
-            CurrencyRoundCount = _apiSettingsAsOptionsMonitor.CurrentValue.DecimalPlaces
+            DefaultCurrency = _apiSettings.CurrentValue.DefaultCurrency,
+            BaseCurrency = response.BaseCurrencyCode.ToString().ToUpper(),
+            NewRequestsAvailable = response.HasAvailableRequests,
+            CurrencyRoundCount = (int)currencySettings.CurrencyRoundCount
+        };
+    }
+    
+    public async Task<ExchangeRates> GetCurrencyRateByFavouriteNameAsync(string name, CancellationToken cancellationToken)
+    {
+        var currencyFavourite = await _curFavAndSettDbContext.FavouritesCurrenciesRates
+            .FirstOrDefaultAsync(c => c.Name == name, cancellationToken: cancellationToken);
+        if (currencyFavourite == null)
+            throw new CurrencyFavouriteNotFoundException("Избранного с таким именем не найдено");
+        var currRequest = new CurrencyRequestWithBaseCurrency
+        {
+            CurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.Currency, ignoreCase: true),
+            BaseCurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.BaseCurrency, ignoreCase: true)
+        };
+        var response = await _grpcCurrencyClient.GetCurrentCurrencyRateRelativeBaseCurrencyAsync(
+            request: currRequest,
+            cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRates
+        {
+            ValueCode = response.CurrencyCode.ToString().ToUpper(),
+            CurrentValueRate = (decimal)roundedValue
         };
     }
 
-    public async Task<ApiStatus> CheckApiStatusAsync()
+    public async Task<ExchangeRatesWithDate> GetCurrencyRateOnDateByFavouriteNameAsync(string name, DateOnly dateOnly, CancellationToken cancellationToken)
     {
-        var response = await SendRequestToGetStatusAsync();
-        if (!response.IsSuccessStatusCode)
-            throw new Exception("Ошибка получения количества доступных запросов!");
+        if (dateOnly == new DateOnly(1,1,1))
+            throw new Exception("Ошибка преобразования даты");
         
-        var apiStatus = await response.Content.ReadFromJsonAsync<ApiStatus>();
-        if (apiStatus == null)
-            throw new Exception("Ошибка преобразования данных");
-        return apiStatus;
+        var currencyFavourite = await _curFavAndSettDbContext.FavouritesCurrenciesRates
+            .FirstOrDefaultAsync(c => c.Name == name, cancellationToken: cancellationToken);
+        if (currencyFavourite == null)
+            throw new CurrencyFavouriteNotFoundException("Избранного с таким именем не найдено");
+        
+        var currRequest = new CurrencyRequestWithBaseCurrencyAndDate()
+        {
+            CurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.Currency, ignoreCase: true),
+            BaseCurrencyCode = Enum.Parse<CurrencyCode>(currencyFavourite.BaseCurrency, ignoreCase: true),
+            Date = Timestamp.FromDateTime(dateOnly.ToDateTime(TimeOnly.MaxValue).ToUniversalTime())
+        };
+
+        var response = await _grpcCurrencyClient.GetCurrencyRateOnDateRelativeBaseCurrencyAsync(
+            request: currRequest,
+            cancellationToken: cancellationToken);
+        var currencySettings = GetCurrencySettingsFromDb();
+        var roundedValue = Math.Round(response.Value, (int)currencySettings.CurrencyRoundCount);
+        return new ExchangeRatesWithDate
+        {
+            ValueCode = response.CurrencyCode.ToString().ToUpper(),
+            CurrentValueRate = (decimal)roundedValue,
+            Date = dateOnly
+        };
     }
 
-    private Task<HttpResponseMessage> SendRequestToGetStatusAsync()
+    private CurrencySettings GetCurrencySettingsFromDb()
     {
-        return SendRequestWithPath(_apiSettingsAsOptionsMonitor.CurrentValue.BaseUrl + "/status");
-    }
-    
-    private Task<HttpResponseMessage> SendRequestToGetCurrencyRateAsync(string baseCurrencyCode, string defaultCurrencyCode)
-    {
-        return SendRequestWithPath(_apiSettingsAsOptionsMonitor.CurrentValue.BaseUrl + $"/latest?currencies={defaultCurrencyCode}&base_currency={baseCurrencyCode}");
-    }
-    
-    private Task<HttpResponseMessage> SendRequestToGetHistoricalCurrencyRateAsync(string baseCurrencyCode, string defaultCurrencyCode, DateOnly date)
-    {
-        return SendRequestWithPath(_apiSettingsAsOptionsMonitor.CurrentValue.BaseUrl + $"/historical?currencies={defaultCurrencyCode}&date={date.ToString("yyyy-MM-dd")}&base_currency={baseCurrencyCode}");
+        var currencySettings = _curFavAndSettDbContext.Settings.FirstOrDefault();
+        if (currencySettings == null)
+            throw new CurrencySettingsNotFoundException("Настройки в базе данных не найдены");
+        return currencySettings;
     }
 
-    private async Task<HttpResponseMessage> SendRequestWithPath(string path)
+    private async Task IsNewRequestsAvailableAsync(CancellationToken cancellationToken)
     {
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("apikey", _apiSettingsAsOptionsMonitor.CurrentValue.ApiKey);
-        return await _httpClient.GetAsync(path);
+        var response = await _grpcCurrencyClient.GetSettingsAsync(new Empty(), cancellationToken: cancellationToken);
+        if (!response.HasAvailableRequests)
+            throw new ApiRequestLimitException("Больше запросов нет :(");
     }
-    
-    
 }

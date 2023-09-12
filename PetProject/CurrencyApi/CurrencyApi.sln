@@ -5,7 +5,11 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionFolder", "SolutionFolder", "{7F1CAA5F-961F-49C8-B0EF-2E18E10D1BAA}"
 	ProjectSection(SolutionItems) = preProject
 		..\ReadMe.md = ..\ReadMe.md
+		docker-compose.yml = docker-compose.yml
+		.env = .env
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InternalApi", "InternalApi\InternalApi.csproj", "{2E1CB431-248F-4C11-B54A-4EE76BA12F5D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,5 +21,9 @@ Global
 		{BB325421-2B35-4535-B7D0-26181BDC84C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BB325421-2B35-4535-B7D0-26181BDC84C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BB325421-2B35-4535-B7D0-26181BDC84C5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E1CB431-248F-4C11-B54A-4EE76BA12F5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E1CB431-248F-4C11-B54A-4EE76BA12F5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E1CB431-248F-4C11-B54A-4EE76BA12F5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E1CB431-248F-4C11-B54A-4EE76BA12F5D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
